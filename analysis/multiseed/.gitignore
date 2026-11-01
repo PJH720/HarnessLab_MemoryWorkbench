@@ -1,0 +1,4 @@
+.uv-cache/
+.pytest-tmp/
+__pycache__/
+*.tmp

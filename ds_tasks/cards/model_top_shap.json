@@ -1,0 +1,19 @@
+{
+  "id": "model_top_shap",
+  "question": "Data: Telco-Customer-Churn2025.csv (customers) and the Census ACS S1901 CSV (skip the second header row). ZIP = last 5 characters of GEO_ID as int; Area_Median_Income = S1901_C01_012E coerced to numeric. Left-join customers on 'Zip Code'; fill missing Area_Median_Income with the median of the Census column. Income_Charge_Ratio = Monthly Charges / (Area_Median_Income / 12). Area_Income_Level = bins [0, 40000, 75000, 120000, inf) labelled Low/Medium/High/Very High. Churn is 'Churn Value' (1 = churned).\n\nModel: drop Churn Value (target), CLTV, Churn Label, Churn Score, Churn Reason, ID/geo columns (CustomerID, Count, Country, State, City, Zip Code, Lat Long, Latitude, Longitude) and Area_Income_Level; one-hot other categoricals; stratified 80/20 split random_state=42; LGBMClassifier(n_estimators=200, learning_rate=0.05, class_weight='balanced', random_state=42, deterministic=True). Which 3 one-hot feature columns have the largest mean |SHAP| on the test set? (spaces replaced by underscores)",
+  "answer": [
+    "Contract_Month-to-month",
+    "Dependents_No",
+    "Tenure_Months"
+  ],
+  "answer_type": "set",
+  "tolerance": {},
+  "tags": [
+    "model",
+    "explain"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "segment_income_low",
+  "question": "Data: Telco-Customer-Churn2025.csv (customers) and the Census ACS S1901 CSV (skip the second header row). ZIP = last 5 characters of GEO_ID as int; Area_Median_Income = S1901_C01_012E coerced to numeric. Left-join customers on 'Zip Code'; fill missing Area_Median_Income with the median of the Census column. Income_Charge_Ratio = Monthly Charges / (Area_Median_Income / 12). Area_Income_Level = bins [0, 40000, 75000, 120000, inf) labelled Low/Medium/High/Very High. Churn is 'Churn Value' (1 = churned).\n\nWhat is the churn rate (0-1) of customers in Area_Income_Level 'Low'?",
+  "answer": 0.3,
+  "answer_type": "number",
+  "tolerance": {
+    "abs": 0.005
+  },
+  "tags": [
+    "segment",
+    "derive"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

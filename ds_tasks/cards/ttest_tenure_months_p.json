@@ -1,0 +1,16 @@
+{
+  "id": "ttest_tenure_months_p",
+  "question": "Same Welch's t-test on 'Tenure Months': what is the two-sided p-value?",
+  "answer": 1.1954945472605766e-232,
+  "answer_type": "number",
+  "tolerance": {
+    "log10": 0.5
+  },
+  "tags": [
+    "test"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

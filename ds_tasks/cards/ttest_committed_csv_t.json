@@ -1,0 +1,17 @@
+{
+  "id": "ttest_committed_csv_t",
+  "question": "Using only telco_churn_with_income.csv, drop rows with missing Income_Charge_Ratio and run Welch's t-test (churned vs retained). What is t?",
+  "answer": 11.720763799429093,
+  "answer_type": "number",
+  "tolerance": {
+    "rel": 0.01
+  },
+  "tags": [
+    "test",
+    "trap:missing"
+  ],
+  "inputs": [
+    "telco_churn_with_income.csv"
+  ],
+  "note": "differs from the filled pipeline; tests whether the agent follows the stated missing-value rule"
+}

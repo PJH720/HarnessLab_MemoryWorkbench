@@ -1,0 +1,14 @@
+{
+  "id": "join_census_zctas",
+  "question": "How many ZCTA rows does the Census file have (after skipping the description row)?",
+  "answer": 1808,
+  "answer_type": "number",
+  "tolerance": {},
+  "tags": [
+    "join"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "join_unique_zips",
+  "question": "How many unique ZIP codes are in the customer file?",
+  "answer": 1652,
+  "answer_type": "number",
+  "tolerance": {},
+  "tags": [
+    "join"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

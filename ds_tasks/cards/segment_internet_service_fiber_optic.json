@@ -1,0 +1,16 @@
+{
+  "id": "segment_internet_service_fiber_optic",
+  "question": "What is the churn rate (0-1) of customers with Internet Service = 'Fiber optic'?",
+  "answer": 0.4189276485788114,
+  "answer_type": "number",
+  "tolerance": {
+    "abs": 0.005
+  },
+  "tags": [
+    "segment"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

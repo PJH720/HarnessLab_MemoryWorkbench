@@ -1,0 +1,13 @@
+[project]
+name = "ds-tasks"
+version = "0.1.0"
+description = "Reference data-science pipeline (from churn-guard) and task cards for agent harness evaluation"
+requires-python = ">=3.11"
+dependencies = ["pandas>=2.2", "numpy", "scipy", "scikit-learn", "lightgbm", "openai>=1.40", "pyarrow"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -1,0 +1,17 @@
+{
+  "id": "ttest_icr_cohens_d",
+  "question": "Data: Telco-Customer-Churn2025.csv (customers) and the Census ACS S1901 CSV (skip the second header row). ZIP = last 5 characters of GEO_ID as int; Area_Median_Income = S1901_C01_012E coerced to numeric. Left-join customers on 'Zip Code'; fill missing Area_Median_Income with the median of the Census column. Income_Charge_Ratio = Monthly Charges / (Area_Median_Income / 12). Area_Income_Level = bins [0, 40000, 75000, 120000, inf) labelled Low/Medium/High/Very High. Churn is 'Churn Value' (1 = churned).\n\nCohen's d for Income_Charge_Ratio, churned minus retained, using the average of the two sample variances (ddof=1) as pooled variance?",
+  "answer": 0.3386930699055139,
+  "answer_type": "number",
+  "tolerance": {
+    "rel": 0.01
+  },
+  "tags": [
+    "test",
+    "effect-size"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

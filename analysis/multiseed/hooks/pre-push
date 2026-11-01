@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+export UV_CACHE_DIR=analysis/multiseed/.uv-cache UV_OFFLINE=1 UV_NO_SYNC=1
+export PYTHONDONTWRITEBYTECODE=1
+exec uv run --project harness_lab/text_classification python analysis/multiseed/privacy_guard.py --mode push

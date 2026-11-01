@@ -1,0 +1,16 @@
+{
+  "id": "describe_overall_churn",
+  "question": "What is the overall churn rate (fraction, 0-1)?",
+  "answer": 0.2653698707936959,
+  "answer_type": "number",
+  "tolerance": {
+    "abs": 0.005
+  },
+  "tags": [
+    "describe"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "ttest_monthly_charges_t",
+  "question": "Welch's t-test (unequal variances), churned minus retained, on 'Monthly Charges': what is the t statistic?",
+  "answer": 18.407526676414673,
+  "answer_type": "number",
+  "tolerance": {
+    "rel": 0.01
+  },
+  "tags": [
+    "test"
+  ],
+  "inputs": [
+    "Telco-Customer-Churn2025.csv",
+    "ACSST5Y2024.S1901_2026-07-01T071953/ACSST5Y2024.S1901-Data.csv"
+  ]
+}

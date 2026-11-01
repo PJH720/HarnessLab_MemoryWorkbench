@@ -1,0 +1,194 @@
+# Project101: 메모리를 활용하는 에이전트 평가
+
+[English documentation](README.md)
+
+언어 모델 에이전트의 메모리 전략을 비교하는 연구용 저장소입니다.
+증상 기반 질병 라벨 분류, 터미널 애플리케이션, 정답 검증이 가능한
+데이터 과학 과제, 쌍체 통계 분석을 포함합니다.
+
+질병 예측은 벤치마크 라벨 분류이며 임상 진단이 아닙니다.
+GitHub에는 개인정보 검토를 거친 소스 스냅샷을 배포합니다. 원시 데이터,
+학습된 메모리, 개인 보고서, 인증 정보, 추론 캐시와 기존 개발 이력은 제외합니다.
+
+## 구성
+
+| 경로 | 역할 |
+|---|---|
+| `harness_lab/text_classification/` | 메모리 구현, 온라인 학습과 평가, 벤치마크 실행, 계약 검증 테스트 |
+| `harness_cli/` | Typer/Rich 기반 대화형·단건 실행 터미널 인터페이스 |
+| `ds_tasks/` | 데이터 과학 기준 파이프라인, 과제 카드, ReAct 실행과 정답 채점 |
+| `analysis/harness_stats.py` | 기존 단일 시드 재생, 피처 추출, 통계 진단 |
+| `analysis/multiseed/` | 캐시 전용 다중 시드 분석, 쌍체 검정, 부트스트랩, 회귀, 검정력 계획, 개인정보 검사 |
+
+주요 비교 대상은 `no_memory`, `fewshot_all`, `knn_top6`, `contrast_online`,
+`reflexion_notes`, `cue_bank`, `cue_bank_verified`입니다.
+검색한 원시 예시와 모델이 생성한 단서·노트를 구분합니다. 생성 메모리는
+수용된 항목, 검증에서 거절된 항목, 파싱 실패를 나누어 집계합니다.
+
+## 설치와 사전 조건
+
+- Python 3.11 이상과 `uv`가 필요합니다.
+- Git을 사용하며, GitHub CLI는 저장소 관리에만 필요합니다.
+- 실제 추론에는 별도로 준비한 모델 엔드포인트가 필요합니다.
+- 데이터 평가에는 사용이 허가된 로컬 데이터와 동결 메모리가 필요합니다.
+
+저장소 루트에서 필요한 구성 요소만 설치합니다.
+
+```sh
+uv sync --project harness_cli --group dev
+uv sync --project harness_lab/text_classification
+uv sync --project ds_tasks --group dev
+```
+
+의존성 설치는 패키지 저장소에 접근할 수 있지만 모델 추론을 시작하지 않습니다.
+실험 실행 전에는 자신의 엔드포인트, 데이터 접근 권한과 비용 한도를 설정해야 합니다.
+
+## CLI 사용
+
+```sh
+uv run --project harness_cli harness-cli --help
+```
+
+실행 환경은 아래 변수로 설정합니다. 실제 키와 내부 주소는 셸 또는
+Git에서 제외된 로컬 환경 파일에만 보관합니다.
+
+| 환경 변수 | 의미 |
+|---|---|
+| `HARNESS_SYSTEM` | 메모리 구현 이름. CLI 기본값은 `confusion_contrast` |
+| `HARNESS_MEMORY` | 별도로 준비한 동결 `memory.json` 경로 |
+| `HARNESS_MODEL` | LiteLLM 형식의 모델 식별자 |
+| `HARNESS_API_BASE` | 자신이 사용할 OpenAI 호환 엔드포인트 |
+| `OPENAI_API_KEY` | 해당 엔드포인트가 요구하는 인증 키 |
+
+배포 소스의 내부 기본 주소는 연결되지 않는 `.invalid` 주소로 치환합니다.
+자신의 승인된 주소와 메모리를 설정한 후 아래 명령을 사용합니다.
+
+```sh
+# 환경 설정이 끝난 뒤 실행하면 실제 모델 추론을 수행합니다.
+uv run --project harness_cli harness-cli
+uv run --project harness_cli harness-cli predict "Fever and chills" --json
+uv run --project harness_cli harness-cli info
+```
+
+대화형 명령은 `/help`, `/info`, `/why`, `/clear`, `/exit`입니다.
+CLI는 기존 분류 하네스를 불러오는 인터페이스입니다. 학습된 메모리나 데이터가
+포함된 독립 배포 패키지는 아니므로, 새 복제본에서 예측하려면 해당 입력을
+별도로 준비해야 합니다. `--help`는 모델을 호출하지 않습니다.
+
+## 분류 및 데이터 과학 실험
+
+분류 inner loop는 지정된 데이터와 메모리 시스템을 평가하고, benchmark와
+meta-harness는 후보 평가와 선택을 관리합니다. 후보 선택에는 validation을
+사용하고, test 평가는 선택 및 분석 계획을 고정한 뒤 수행해야 합니다.
+내부 `config.yaml`과 원시 JSONL은 배포에서 제외하므로 로컬 설정을 준비해야 합니다.
+
+분류 데이터의 출처는 [`data/README.md`](harness_lab/text_classification/data/README.md)에
+기록되어 있습니다. Symptom2Disease 파일은 MCE artifact 배포를 통해 확보했습니다.
+배포본에는 원시 증상 문장을 포함하지 않습니다. 이 벤치마크 결과는 임상적
+유효성이나 실제 환자 모집단에 대한 전향적 검증을 의미하지 않습니다.
+
+`ds_tasks/`는 이탈 고객·Census 기반 분석의 과제 카드와 결정적 기준 파이프라인을
+포함합니다. 원시 파일과 외부 참조 저장소는 제외합니다. 승인된 데이터 경로를
+`CHURN_DATA_DIR`로 설정해야 합니다. 실제 에이전트 실행에는 `DS_AGENT_BASE_URL`,
+`DS_AGENT_MODEL`과 인증 정보가 추가로 필요합니다. 두 fold를 번갈아 학습과
+평가에 사용하는 교차 적합 방식으로 메모리를 평가합니다.
+
+## 캐시 전용 통계 분석
+
+다중 시드 엔진은 모델을 호출하지 않습니다. 기존 실행 파일과 응답 캐시를
+재생하며, 캐시가 없으면 응답을 생성하지 않고 결측으로 표시합니다.
+
+- 시드·분할별 정확도와 정확 McNemar 쌍체 검정
+- 시드 층화 matched-pair MH 및 합산 불일치 쌍 정확 이항검정
+- `knn_top6` 대비 여섯 비교의 Holm 보정
+- 시드 내 쌍체 부트스트랩 10,000회, 난수 시드 0
+- 등록된 군집 단위에 따른 계열·단서 피처 로지스틱 회귀
+- 반복 잡음과 입력 파일 충족률 보고
+
+전체 재생에는 동결 메모리, 결과 파일, 응답 캐시, 기존 기준 출력과 사전 등록
+문서가 필요하며 배포본에는 포함하지 않습니다. 과거 캐시 해시에 사용된 내부
+주소도 배포 소스에서는 치환하므로, 과거 캐시를 정확히 재생하려면 원래 캐시 키
+설정을 로컬에서 복원해야 합니다. 새 복제본의 입력 누락을 실험 결과로 해석하면 안 됩니다.
+
+실험 결과를 읽지 않는 독립 검정력 계산기는 아래처럼 실행할 수 있습니다.
+
+```sh
+mkdir -p analysis/multiseed/out
+uv run --project harness_lab/text_classification --with scipy \
+  python analysis/multiseed/power_plan.py
+```
+
+결과는 로컬 `analysis/multiseed/out/`에 저장합니다. 계산의 표본 수는 동일 문항의
+반복 평가 횟수가 아니라 독립적인 쌍체 문항 수입니다.
+
+## 검증된 과거 스냅샷
+
+다음은 2026-11-02 02:32 KST에 저장된 로컬 분석 결과입니다.
+제외된 입력 없이 새 복제본에서 같은 결과를 재현할 수 있다는 의미는 아닙니다.
+
+| 비교 | 정답 수 | 정확 McNemar p | Holm 보정 p | 해석 |
+|---|---|---:|---:|---|
+| seed42 test: knn_top6 vs no_memory | 175/212 vs 142/212 | 0.000005550521 | 0.000033303125 | 유의한 보조 비교, +15.57%p |
+| seed42 test: knn_top6 vs cue_bank | 175/212 vs 172/212 | 0.6776394844 | 1.0 | 유의한 차이를 발견하지 못함 |
+| seed123 test: knn_top6 vs cue_bank | 173/212 vs 179/212 | 0.2101135254 | 0.8404541016 | 유의한 차이를 발견하지 못함, 방향 반대 |
+| seed42 validation: knn_top6 vs cue_bank | 41/50 vs 35/50 | 0.0703125 | 0.421875 | 유의한 차이를 발견하지 못함, n=50 |
+
+주가설의 세 시드 판정은 **INCOMPLETE**입니다. 필요한 신규 결과 37개 중
+29개를 분석했고 seed456 결과 8개가 누락됐습니다. 무메모리 대비 유의성은
+생성 단서에 관한 주가설의 입증이나 Negative Priming의 인과 증명이 아닙니다.
+같은 test 문항이 시드마다 반복되므로 636회 평가는 독립 문항 636개가 아닙니다.
+유의하지 않다는 결과만으로 동등성을 주장할 수도 없습니다.
+
+저장된 검증에서는 분석·검정력 테스트 26개를 통과했고, 기준 비교 21개와
+문항 행 350개가 정확히 일치했습니다. McNemar 기준 CSV도 바이트 단위로
+일치했습니다. 사전 등록 문서와 기존 결과·메모리 파일 14개의 해시는 유지됐습니다.
+상세 근거는 배포에서 제외된 로컬 `analysis/multiseed/out/validation.json`과
+관련 CSV에 보관되어 있습니다.
+
+작업 한도만 DAG 20→60회, 파일 확인 12→21회로 늘렸습니다. 결과를 본 뒤
+과학적 파라미터를 조정하지 않았습니다. 향후 독립 실험에서 차이 5%p,
+불일치율 20%, 양측 alpha 0.05를 가정하면 검정력 80%에 독립 쌍체 문항
+658개가 필요합니다. 이는 가정에 따른 계획이며 유의성을 보장하지 않습니다.
+
+## 테스트
+
+비공개 기준 재생 테스트를 제외한 통계 및 개인정보 검사 실행 명령입니다.
+
+```sh
+uv run --project harness_lab/text_classification \
+  --with scipy --with statsmodels --with pandas --with pytest \
+  python -m pytest analysis/multiseed/test_stats.py \
+  analysis/multiseed/test_power_plan.py analysis/multiseed/test_privacy_guard.py \
+  -k 'not reference_replay_matches_original_features_and_all_pairs' \
+  -q -p no:cacheprovider --basetemp analysis/multiseed/.pytest-tmp
+```
+
+재생·일치 검증 중 일부는 비공개 입력이 있어야 통과합니다. CLI 테스트는
+stub을 사용하며, 동결 메모리가 필요한 테스트는 메모리가 없으면 건너뜁니다.
+분류 데이터 및 데이터 과학 기준 테스트도 제외된 원시 입력이 필요합니다.
+전체 테스트를 선택하기 전에 해당 입력의 존재를 확인해야 합니다.
+
+## 개인정보와 GitHub 업로드
+
+보고서, 발표 자료, 인증 정보, 원시 데이터, 메모리, 로그, 캐시와 에이전트
+세션 상태는 Git에서 제외합니다. 기존 개발 이력은 GitHub 스냅샷에 포함하지 않습니다.
+배포 소스의 내부 주소는 연결되지 않는 주소로 치환하고, 소스 배포 커밋에는
+개인 식별 정보를 사용하지 않습니다.
+
+새 복제본에서 로컬 commit/push 보호를 활성화하려면 다음을 실행합니다.
+
+```sh
+git config --local core.hooksPath analysis/multiseed/hooks
+```
+
+[개인정보 보호 문서](analysis/multiseed/docs/publication_privacy.md)를 참고하세요.
+로컬 hook은 우회할 수 있고 정규식 검사는 모든 개인정보를 식별하지 못합니다.
+내용 검토와 GitHub의 private 설정을 각각 유지해야 합니다.
+
+## 출처와 라이선스
+
+수정한 Meta-Harness 코드는
+[`harness_lab/LICENSE-meta-harness`](harness_lab/LICENSE-meta-harness)의
+원본 MIT 고지를 유지합니다. 데이터와 다른 외부 자료에는 각자의 조건이 적용됩니다.
+이 문서는 저장소 전체에 새 라이선스를 부여하거나 제외된 데이터의 재배포 권한을
+주장하지 않습니다.
