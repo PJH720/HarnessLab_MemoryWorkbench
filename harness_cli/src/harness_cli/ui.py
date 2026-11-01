@@ -212,10 +212,15 @@ def banner(console: Console, settings: Settings, stats: MemoryStats | None = Non
     body += [
         Text(),
         Text.assemble(
-            ("증상을 영어로 입력하거나 ", "dim"), ("1", ACCENT), (" ", "dim"), ("2", ACCENT), (" ", "dim"), ("3", ACCENT),
-            (" 프리셋 · ", "dim"), ("/harness", ACCENT), (" 블록 교체 · ", "dim"),
-            ("/compare no_memory knn_top6 1", ACCENT), (" 좌우 비교 · ", "dim"), ("/study", ACCENT), (" · ", "dim"),
-            ("/help", ACCENT), (" · ", "dim"), ("/exit", ACCENT),
+            ("📚 [실용 학습 모드] ", "bold green"), ("/load <자료.md>", ACCENT), (" 내 노트 로드 · ", "dim"),
+            ("질문 입력", ACCENT), (" 질의응답 · ", "dim"),
+            ("/record", ACCENT), (" 교훈 영구저장 · ", "dim"),
+            ("/task study", ACCENT), (" 전환\n", "dim"),
+            ("🔬 [실험 재현 모드] ", "bold cyan"), ("/task medical", ACCENT), (" 22개 질병 벤치마크 · ", "dim"),
+            ("1·2·3", ACCENT), (" 프리셋 · ", "dim"),
+            ("/harness", ACCENT), (" 8대 동결블록 교체 · ", "dim"),
+            ("/compare", ACCENT), (" 비교 · ", "dim"),
+            ("/help", ACCENT), (" 안내", "dim"),
         ),
     ]
     console.print(Panel(Group(*body), border_style=ACCENT, padding=(1, 2)))

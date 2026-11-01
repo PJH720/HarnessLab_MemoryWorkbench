@@ -469,13 +469,70 @@ def main(
         chat()
 
 
+@app.command("ask")
+def ask_cmd(
+    question: str = typer.Argument(..., help="공부할 질문 (영어)"),
+    doc: str = typer.Option("", "--doc", "-d", help="질문 전 불러올 노트/자료 파일 경로 (.md/.txt)"),
+    mode: str = typer.Option("knn", "--mode", "-m", help="메모리 전략: knn (유사 단락), cues (학습 교훈), none (기억 없음)"),
+    json_out: bool = typer.Option(False, "--json", help="결과를 JSON으로 출력"),
+) -> None:
+    """[실용 모드] 내 노트와 영구 교훈을 바탕으로 질문에 답합니다 (Koog Study Buddy & Hermes Agent)."""
+    session = _session()
+    session.task = "study"
+    if doc:
+        try:
+            count = session.buddy.load(Path(doc))
+            console.print(f"[dim]자료 로드: {Path(doc).name} ({count}단락)[/]")
+        except docqa.NotesError as exc:
+            console.print(f"[yellow]{exc}[/]")
+            raise typer.Exit(1) from exc
+    mode_obj = docqa.resolve_mode(mode)
+    session.mode = mode_obj.name
+    with console.status("노트를 검색하고 답하는 중…" if session.live else "노트를 검색하는 중…"):
+        ans, note = _study_answer(session, question, session.mode)
+    ui.notice(console, note)
+    if json_out:
+        typer.echo(json.dumps(asdict(ans), ensure_ascii=False, indent=2))
+        return
+    panels.study_answer(console, ans, session.settings.model.split("/")[-1] if session.live else "")
+
+
+@app.command("load")
+def load_cmd(
+    path: str = typer.Argument(..., help="불러올 공부 자료 (.md 또는 .txt)"),
+) -> None:
+    """[실용 모드] 강의 노트나 공부 자료를 불러와 기억 인덱스에 추가합니다."""
+    session = _session()
+    _load(session, path)
+
+
+@app.command("notes")
+def notes_cmd() -> None:
+    """[실용 모드] 현재 로드된 공부 자료와 누적된 교훈(메모리) 상태를 확인합니다."""
+    session = _session()
+    _study_memory(session, "status")
+
+
+@app.command("benchmark")
+def benchmark_cmd(
+    symptoms: str = typer.Argument("", help="환자 증상 (비우면 프리셋 1·2·3 대화형)"),
+    json_out: bool = typer.Option(False, "--json", help="결과를 JSON으로 출력"),
+    evidence: bool = typer.Option(True, "--evidence/--no-evidence", help="하네스가 고른 예시 표시"),
+) -> None:
+    """[연구 재현 모드] 캡스톤 논문의 8개 동결 메모리(Symptom2Disease)를 재현·평가합니다."""
+    if not symptoms:
+        demo_cmd("")
+        return
+    predict(symptoms=symptoms, json_out=json_out, evidence=evidence)
+
+
 @app.command()
 def predict(
     symptoms: str = typer.Argument(..., help="환자 증상 (영어 문장)"),
     json_out: bool = typer.Option(False, "--json", help="결과를 JSON으로 출력"),
     evidence: bool = typer.Option(True, "--evidence/--no-evidence", help="하네스가 고른 예시 표시"),
 ) -> None:
-    """증상 한 건을 진단합니다 (서버가 없고 녹화도 없으면 프롬프트 미리보기, 종료 코드 2)."""
+    """[연구 재현 모드] 증상 한 건을 진단합니다 (캡스톤 22개 질병 벤치마크)."""
     session = _session()
     pred, note = _ask(session, symptoms)
     if pred is None:
