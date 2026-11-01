@@ -2,6 +2,12 @@
 
 [한국어 문서](README.ko.md)
 
+## Research presentation
+
+The research presentation is deployed as an HTML slide deck on Vercel:
+**[View the presentation in your browser](https://harness-midterm-talk.vercel.app)**.
+The deployed presentation can be viewed without cloning or running this repository.
+
 A research workspace for comparing memory strategies in language-model agents.
 It combines symptom-to-disease text classification, a terminal application,
 deterministic data-science task cards, and paired statistical analysis.
