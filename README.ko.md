@@ -52,8 +52,18 @@ uv sync --project ds_tasks --group dev
 
 ## CLI 사용
 
+`harness_cli` v0.2.2는 평가한 메모리 시스템을 터미널에서 실행하는 도구입니다.
+영어로 쓴 자신의 노트에 질문하는 두 번째 작업(study task)도 있습니다.
+모델은 고정하고 프롬프트에 넣는 기억(하네스)만 바꿉니다. 8개 블록이 같은
+인터페이스를 씁니다. online-v2의 7개 시스템(`no_memory`, `fewshot_all`,
+`knn_top6`, `contrast_online`, `cue_bank`, `cue_bank_verified`,
+`reflexion_notes`)과 중간과제 후보 `confusion_contrast`입니다. 연구 배경과 전체
+결과는 [발표 자료](https://harness-midterm-talk.vercel.app)에 있습니다.
+
 ```sh
 uv run --project harness_cli harness-cli --help
+uv run --project harness_cli harness-cli --demo          # 녹화 응답 재생, 모델 서버 불필요
+uv run --project harness_cli harness-cli --demo compare no_memory knn_top6 1
 ```
 
 실행 환경은 아래 변수로 설정합니다. 실제 키와 내부 주소는 셸 또는
@@ -61,14 +71,21 @@ Git에서 제외된 로컬 환경 파일에만 보관합니다.
 
 | 환경 변수 | 의미 |
 |---|---|
-| `HARNESS_SYSTEM` | 메모리 구현 이름. CLI 기본값은 `confusion_contrast` |
-| `HARNESS_MEMORY` | 별도로 준비한 동결 `memory.json` 경로 |
-| `HARNESS_MODEL` | LiteLLM 형식의 모델 식별자 |
-| `HARNESS_API_BASE` | 자신이 사용할 OpenAI 호환 엔드포인트 |
-| `OPENAI_API_KEY` | 해당 엔드포인트가 요구하는 인증 키 |
+| `HARNESS_SYSTEM` | 시작 블록 이름 또는 별칭. CLI 기본값은 `confusion_contrast` |
+| `HARNESS_MEMORY` | 시작 블록의 내장 기억만 다른 파일로 지정 |
+| `HARNESS_DATA_ROOT` | `harness_lab/`(에이전트 코드)이 있는 폴더. 기본값은 저장소 루트 |
+| `HARNESS_MODEL` | LiteLLM 형식의 모델 식별자. 없으면 기본값이 아닌 엔드포인트는 `/models` 목록의 첫 모델을 사용 |
+| `HARNESS_API_BASE` | 자신이 사용할 OpenAI 호환 엔드포인트 (가장 먼저 시도) |
+| `OPENAI_BASE_URL` | 두 번째로 시도할 엔드포인트. vLLM, OpenRouter, Ollama(`http://localhost:11434/v1`) 등 |
+| `OPENAI_API_KEY` | 해당 엔드포인트가 요구하는 인증 키 (`/models`와 호출에만 보내고 저장하지 않음) |
+| `HARNESS_HOME` | 프로필과 스크래치패드를 저장할 폴더. 기본값 `~/.harness` |
+
+시작할 때 `HARNESS_API_BASE`, `OPENAI_BASE_URL`, 내장 기본 주소, 로컬 Ollama 순서로
+`/models`를 확인해 처음 응답한 곳을 씁니다. 실행 중인 모델이 결과를 측정한 모델과 다르면
+CLI가 이를 알립니다. 기록된 정확도는 측정한 모델에만 해당합니다.
 
 배포 소스의 내부 기본 주소는 연결되지 않는 `.invalid` 주소로 치환합니다.
-자신의 승인된 주소와 메모리를 설정한 후 아래 명령을 사용합니다.
+자신의 승인된 주소를 설정한 후 아래 명령을 사용합니다.
 
 ```sh
 # 환경 설정이 끝난 뒤 실행하면 실제 모델 추론을 수행합니다.
@@ -77,10 +94,81 @@ uv run --project harness_cli harness-cli predict "Fever and chills" --json
 uv run --project harness_cli harness-cli info
 ```
 
-대화형 명령은 `/help`, `/info`, `/why`, `/clear`, `/exit`입니다.
-CLI는 기존 분류 하네스를 불러오는 인터페이스입니다. 학습된 메모리나 데이터가
-포함된 독립 배포 패키지는 아니므로, 새 복제본에서 예측하려면 해당 입력을
-별도로 준비해야 합니다. `--help`는 모델을 호출하지 않습니다.
+대화형 명령:
+
+| 명령 | 동작 |
+|---|---|
+| `/harness <이름>` (별칭 `/switch`) | 지금 블록 교체. 이름 없이 입력하면 8개 목록 |
+| `/compare <블록1> <블록2> [1-3 또는 증상]` | 두 블록을 좌우로 실행해 진단, 프롬프트 크기와 토큰, 응답 시간, 상위 검색 예시, 기록된 test 정확도를 대조 |
+| `/record "<증상>" -> "<질병>"` | 세션 기억에 예시 추가 (영어, 22개 라벨 중 하나) |
+| `/memory status`, `/memory reset` | 블록별 동결 예시와 세션 추가 예시 표, 세션 추가분 삭제 |
+| `/study` | 4단계 학습 가이드: 기억 없음, 예시 선별, 단서 주입, 자유 실험 |
+| `/task medical`, `/task study` | 22개 질병 벤치마크와 노트 질의응답 사이 전환 |
+| `/load <notes.md\|notes.txt>` | 영어 노트를 제목·문단 단위로 나눠 색인하고 study task로 전환 |
+| `/harness no_memory\|knn_retrieval\|lesson_cues` | study task 모드: 질문만, TF-IDF 상위 노트 단락 4개, 가르친 규칙 최대 5개 + 단락 2개 |
+| `/record "<개념>" -> "<규칙>"` | study task에서 규칙을 가르침. 다음 질문부터 바로 검색됨 |
+| `/inspect context` | 직전 질문의 RAW 프롬프트와 넣은 예시별 TF-IDF 점수, 고른 이유(top-k, 과거 오답, 라벨 coverage) |
+| `/explain fewshot` | `fewshot_all`이 확장되지 않는 이유. 기록된 정확도, 질문당 토큰, 계산한 정확도-토큰 파레토 경계 |
+| `/profile`, `/profile set <필드> <값>` | 학습자 프로필(`target_exam`, `topics`, `style`, `name`). 노트 기반 프롬프트에 한 줄로 들어감 |
+| `/quiz [주제]` | 불러온 노트로 복습 문제 3개와 답 요청 |
+| `/help`, `/info`, `/why`, `/clear`, `/exit` | v0.1과 동일 |
+
+기억은 세 계층입니다. 동결 `memory.json`은 읽기만 하며, 동결 로그 안을 가리키는
+`HARNESS_HOME`은 거부합니다. `/record`로 추가한 예시와 가르친 규칙은
+`~/.harness/scratchpad.json`에 저장되어 `/memory reset` 전까지 다음 세션에도 다시
+불러옵니다. `~/.harness/profile.json`에는 학습자 프로필이 있습니다. 불러온 노트는 세션
+안에만 있습니다. `--demo`는 `~/.harness`를 읽지도 쓰지도 않으므로 프리셋 재생은 항상
+동결 기억을 씁니다. 추가한 예시는 예시를 쓰는 모든 블록의 검색에 들어갑니다.
+`cue_bank`, `cue_bank_verified`, `reflexion_notes`에서는 유사 예시 부분만
+바뀝니다. 새 단서나 노트를 쓰려면 모델 호출이 필요하기 때문입니다.
+
+`--demo`이거나 서버에 연결할 수 없으면 `replay.json`의 응답을 재생합니다. 이
+파일에는 8개 블록 x 프리셋 1-3의 실제 서버 응답이 들어 있습니다. 그 밖의 입력과
+`/record`로 기억이 바뀐 뒤의 입력은 오프라인 검색 미리보기를 보여 줍니다. 지금 블록이
+보낼 프롬프트 원문, 검색된 예시, 추정 토큰 수를 표시하고 진단은 비어 있습니다
+(`predict`는 종료 코드 2). 서버 없이 한 study 질문도 같은 미리보기를 보여 줍니다. 녹화된 프리셋에서는 `no_memory`와 `knn_top6`가 모두 정답이므로 한
+건으로는 시스템 간 차이가 드러나지 않습니다. CLI는 비교 화면마다 기록된 평가
+결과를 함께 표시합니다. 동결 기억 8개는 패키지 안
+(`harness_cli/src/harness_cli/data/memories/`)에 들어 있습니다. 연구 로그와 바이트 단위로
+같으며, 로그가 있는 환경에서는 테스트가 이를 확인합니다. 따라서 새로 clone한 컴퓨터에서도
+`logs/`나 `HARNESS_DATA_ROOT` 없이 실행됩니다.
+
+새 컴퓨터에서는 엔드포인트를 한 번 지정합니다. 설정은 `~/.harness/config.json`에 저장되며
+키는 저장하지 않습니다.
+
+```sh
+uv run --project harness_cli harness-cli config --api-base http://localhost:11434/v1 --model llama3.2:3b
+OPENAI_API_KEY=... uv run --project harness_cli harness-cli config   # api.openai.com, gpt-4o-mini
+```
+
+CLI가 표시하는 수치의 출처는 `analysis/multiseed/out/accuracy_tokens.csv`입니다
+(test 분할, seed당 n=212, seed 42/123/456).
+
+| 블록 | test 정확도 (n=212) | 비고 |
+|---|---|---|
+| `no_memory` | 67.0% | 3-seed 평균, 기준선 |
+| `knn_top6` | 83.0% | 3-seed 평균, `fewshot_all` 대비 입력 토큰 80.8% 감소 |
+| `fewshot_all` | 84.6% | 3-seed 평균, `knn_top6`와 구분되지 않음 (pooled Mantel-Haenszel p = 0.18, Holm 보정 전) |
+| `confusion_contrast` | 80.7% | seed 42 단일 실행 (validation 82.0%, n=50) |
+
+seed 42의 50문항 validation에서 보인 `knn_top6`와 `cue_bank`의 차이(41/50 대 35/50,
+p = 0.070)는 212문항 test에서 재현되지 않았습니다(175/212 대 172/212,
+p = 0.68). 아래 검증된 과거 스냅샷을 참고하십시오.
+
+### 독립 실행 번들
+
+```sh
+cd harness_cli && uv build && cd ..
+uv run --project harness_cli python scripts/build_standalone.py
+# -> dist/harness-cli-v0.2.2-standalone.zip
+```
+
+zip에는 wheel(동결 기억 8개 포함), `harness_lab/text_classification` 실행 코드,
+`run.sh`가 들어 있습니다. `run.sh`는 `uv run --with <wheel>`로
+`harness-cli --demo`를 실행합니다. `uv`가 필요하고 첫 실행 때 의존성을 PyPI에서
+받습니다. 모델 서버는 필요 없습니다. 데이터셋 분할은 포함하지 않습니다.
+프롬프트 템플릿은 wheel 안의 사본을 쓰며, 테스트가 데이터셋 프롬프트와 같은지
+확인합니다. 내장 기억에는 평가 실행이 기록한 Symptom2Disease 학습 예시가 들어 있습니다.
 
 ## 분류 및 데이터 과학 실험
 

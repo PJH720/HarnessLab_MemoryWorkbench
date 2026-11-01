@@ -5,6 +5,7 @@
 # 1. 개인 정보 및 환경변수 / 보안 파일
 .env
 .env.*
+!.env.example
 *.env
 *.pem
 *.key
@@ -146,3 +147,13 @@ htmlcov/
 *.tar.gz
 *.tgz
 *.7z
+
+# Frozen memories bundled with the CLI package (copies of the logs above; tracked on purpose)
+!harness_cli/src/harness_cli/data/
+!harness_cli/src/harness_cli/data/**
+
+# Explicit figures and assets for research talk and web publication
+!analysis/figures/
+!analysis/figures/**
+!presentation/20261102_web/figures/
+!presentation/20261102_web/figures/**

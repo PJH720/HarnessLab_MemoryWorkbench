@@ -54,8 +54,19 @@ access permissions, and spending limits are configured.
 
 ## Terminal application
 
+`harness_cli` v0.2.2 is a terminal front-end for the evaluated memory systems,
+with a second task for question answering over your own English notes.
+The model stays fixed; only the memory injected into the prompt (the harness)
+changes. Eight memory "blocks" share one interface: the seven online-v2 systems
+(`no_memory`, `fewshot_all`, `knn_top6`, `contrast_online`, `cue_bank`,
+`cue_bank_verified`, `reflexion_notes`) and the midterm candidate
+`confusion_contrast`. The background and the full results are in the
+[research presentation](https://harness-midterm-talk.vercel.app).
+
 ```sh
 uv run --project harness_cli harness-cli --help
+uv run --project harness_cli harness-cli --demo          # replayed answers, no model server
+uv run --project harness_cli harness-cli --demo compare no_memory knn_top6 1
 ```
 
 Configure the CLI through environment variables in your own shell or an ignored
@@ -63,15 +74,29 @@ local environment file. Never commit real keys or endpoint details.
 
 | Variable | Meaning |
 |---|---|
-| `HARNESS_SYSTEM` | Memory implementation name; the CLI defaults to `confusion_contrast` |
-| `HARNESS_MEMORY` | Path to a separately provisioned frozen `memory.json` |
-| `HARNESS_MODEL` | LiteLLM-compatible model identifier |
-| `HARNESS_API_BASE` | Your own OpenAI-compatible endpoint URL |
-| `OPENAI_API_KEY` | Provider credential if required by your endpoint |
+| `HARNESS_SYSTEM` | Starting block name or alias; the CLI defaults to `confusion_contrast` |
+| `HARNESS_MEMORY` | Overrides the bundled memory of the starting block only |
+| `HARNESS_DATA_ROOT` | Folder that holds `harness_lab/` (agent code); defaults to the checkout |
+| `HARNESS_MODEL` | LiteLLM-compatible model identifier; without it, a non-default endpoint uses the first model its `/models` lists |
+| `HARNESS_API_BASE` | Your own OpenAI-compatible endpoint URL (tried first) |
+| `OPENAI_BASE_URL` | Second endpoint to try, e.g. vLLM, OpenRouter, or Ollama at `http://localhost:11434/v1` |
+| `OPENAI_API_KEY` | Provider credential if required by your endpoint (sent to `/models` and chat calls, never stored) |
+| `HARNESS_HOME` | Folder for the persistent profile and scratchpad; defaults to `~/.harness` |
+
+At startup the CLI probes `HARNESS_API_BASE`, `OPENAI_BASE_URL`, the built-in default and a local
+Ollama in that order and uses the first that answers `/models`. When the live model is not the one
+the results were measured on, the CLI says so: the logged accuracies describe that model only.
 
 The source export replaces internal endpoint defaults with a non-resolving
-`.invalid` placeholder. For example, set `HARNESS_API_BASE` to your approved
-endpoint and `HARNESS_MEMORY` to your local memory file before using:
+`.invalid` placeholder. On a new machine, point the CLI at an endpoint once; the
+setting is saved in `~/.harness/config.json` (never the key):
+
+```sh
+uv run --project harness_cli harness-cli config --api-base http://localhost:11434/v1 --model llama3.2:3b
+OPENAI_API_KEY=... uv run --project harness_cli harness-cli config   # api.openai.com, gpt-4o-mini
+```
+
+Then:
 
 ```sh
 # These commands perform model inference once configured.
@@ -80,10 +105,75 @@ uv run --project harness_cli harness-cli predict "Fever and chills" --json
 uv run --project harness_cli harness-cli info
 ```
 
-Interactive commands are `/help`, `/info`, `/why`, `/clear`, and `/exit`.
-The CLI loads the existing classification harness; it is not a standalone bundle
-of trained memories or datasets. A clean clone cannot predict until those inputs
-are supplied. `--help` does not require a model call.
+Interactive commands:
+
+| Command | Effect |
+|---|---|
+| `/harness <name>` (alias `/switch`) | Swap the active block; without a name, list all eight |
+| `/compare <block1> <block2> [1-3 or text]` | Run two blocks side by side: diagnosis, prompt size and tokens, latency, top retrieved examples, and the logged test accuracy of each |
+| `/record "<symptoms>" -> "<disease>"` | Add an example to the session memory (English, one of the 22 labels) |
+| `/memory status`, `/memory reset` | Frozen versus session examples per block; drop the session examples |
+| `/study` | Four-step guide: no memory, example selection, injected cues, free experiment |
+| `/task medical`, `/task study` | Switch between the 22-disease benchmark and question answering over your notes |
+| `/load <notes.md\|notes.txt>` | Chunk English notes by heading and paragraph, index them, and switch to the study task |
+| `/harness no_memory\|knn_retrieval\|lesson_cues` | In the study task: question only; top-4 note chunks by TF-IDF; up to 5 taught rules plus 2 chunks |
+| `/record "<concept>" -> "<rule>"` | In the study task: teach a rule; it is retrievable from the next question on |
+| `/inspect context` | Raw prompt of the last query, each injected example with its TF-IDF score and why it was chosen (top-k, past mistake, label coverage) |
+| `/explain fewshot` | Why `fewshot_all` does not scale, with the logged accuracy, per-query tokens and the computed accuracy-token Pareto frontier |
+| `/profile`, `/profile set <field> <value>` | Learner profile (`target_exam`, `topics`, `style`, `name`), added as one line to grounded study prompts |
+| `/quiz [topic]` | Ask for three review questions with answers from the loaded notes |
+| `/help`, `/info`, `/why`, `/clear`, `/exit` | As in v0.1 |
+
+Memory has three tiers. The frozen `memory.json` files are only read; the CLI refuses any
+`HARNESS_HOME` inside the frozen logs. `/record` additions and taught study rules are kept in
+`~/.harness/scratchpad.json` and reloaded in the next session, until `/memory reset`;
+`~/.harness/profile.json` holds the learner profile. Loaded notes live only in the session.
+`--demo` neither reads nor writes `~/.harness`, so replayed presets always use the frozen memory. A recorded example enters the retrieval of every block
+that uses examples; in `cue_bank`, `cue_bank_verified` and `reflexion_notes` it
+changes only the similar-examples section, because writing new cues or notes
+needs a model call.
+
+`--demo` (or an unreachable server) answers from `replay.json`, which holds real
+server responses for presets 1-3 on all eight blocks. Any other input, and any input after
+`/record` changed the memory, gets an offline retrieval preview: the exact prompt the active
+block would send, the retrieved examples and a token estimate, with no diagnosis
+(`predict` exits with code 2). Study questions without a server get the same preview.
+In the recorded presets both `no_memory` and `knn_top6` answer correctly, so a
+single case does not show the difference between systems; the CLI shows the
+logged results next to each comparison. The eight frozen memories ship inside the
+package (`harness_cli/src/harness_cli/data/memories/`, byte-identical to the research
+logs, which a test checks when the logs are present), so a fresh clone runs without
+`logs/` or `HARNESS_DATA_ROOT`.
+
+The figures the CLI displays come from `analysis/multiseed/out/accuracy_tokens.csv`
+(test split, n=212 per seed, seeds 42/123/456):
+
+| Block | Test accuracy (n=212) | Note |
+|---|---|---|
+| `no_memory` | 67.0% | 3-seed mean; baseline |
+| `knn_top6` | 83.0% | 3-seed mean; 80.8% fewer input tokens than `fewshot_all` |
+| `fewshot_all` | 84.6% | 3-seed mean; not distinguishable from `knn_top6` (pooled Mantel-Haenszel p = 0.18, before Holm) |
+| `confusion_contrast` | 80.7% | Seed 42 single run (validation 82.0%, n=50) |
+
+The seed 42, 50-item validation gap between `knn_top6` and `cue_bank` (41/50 vs 35/50,
+p = 0.070) was not replicated on the 212-item test split (175/212 vs 172/212,
+p = 0.68); see the verified snapshot below.
+
+### Standalone bundle
+
+```sh
+cd harness_cli && uv build && cd ..
+uv run --project harness_cli python scripts/build_standalone.py
+# -> dist/harness-cli-v0.2.2-standalone.zip
+```
+
+The zip holds the wheel (with the eight frozen memories inside), the runtime code of
+`harness_lab/text_classification`, and `run.sh`, which starts
+`harness-cli --demo` through `uv run --with <wheel>`. It needs `uv` and, on first
+run, PyPI access for the dependencies; it does not need the model server. The
+dataset splits are not included: the prompt template comes from a copy inside
+the wheel that the tests pin to the dataset prompt. The bundled memories contain
+Symptom2Disease training examples written by the evaluated runs.
 
 ## Classification and data-science workflows
 

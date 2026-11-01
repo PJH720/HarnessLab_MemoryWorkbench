@@ -1,7 +1,7 @@
 [project]
 name = "harness-cli"
-version = "0.1.0"
-description = "Terminal front-end for the Meta-Harness memory system found in the midterm run"
+version = "0.2.2"
+description = "Modular Lego-Harness Learning & Experimentation CLI"
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12",
