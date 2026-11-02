@@ -43,7 +43,7 @@ class Session:
     current: str
     home: HarnessHome | None = None  # None in --demo: nothing persisted is read or written
     buddy: StudyBuddy = field(default_factory=StudyBuddy)
-    task: str = "medical"  # "medical" (Symptom2Disease benchmark) | "study" (your notes)
+    task: str = "study"  # "study" (your notes & lessons) | "medical" (Symptom2Disease benchmark)
     mode: str = "knn_retrieval"  # study-task memory mode
     last: dict[str, str] = field(default_factory=dict)  # task -> last query, for /inspect
 
@@ -100,38 +100,41 @@ def _home() -> HarnessHome | None:
         return None
 
 
-def _session() -> Session:
+def _session(task: str = "study") -> Session:
     settings = Settings.from_env()
     home = _home()
     try:
-        with console.status("모델 서버를 찾고 하네스와 기억을 불러오는 중…"):
+        with console.status("모델 서버를 찾고 기억 시스템을 불러오는 중…"):
             found = None if OPTIONS["demo"] else discover(settings)
             live = found is not None
             settings = found or settings
             pool = EnginePool(settings, ReplayCache(), live, OPTIONS["deadline"], scratchpad=Scratchpad(home))
-            session = Session(pool, lego.resolve(settings.system).name, home, StudyBuddy(home))
-            session.harness  # load the starting block now
+            session = Session(pool, lego.resolve(settings.system).name, home, StudyBuddy(home), task=task)
+            if task == "medical":
+                session.harness  # load the starting block now
     except Exception as exc:  # surface setup errors as one readable line
         console.print(f"[red]시작 실패:[/] {exc}")
         raise typer.Exit(1) from exc
     if not live and not OPTIONS["demo"]:
         tried = ", ".join(config.api_base_candidates())
         console.print(f"[yellow]{config.NO_SERVER_MESSAGE}[/]")
-        console.print(f"[dim]시도한 주소: {tried}. 설정: harness-cli config --api-base <url> --model <model>. "
-                      "그동안 새 입력은 프롬프트 미리보기(검색된 예시 + 프롬프트 원문), 프리셋 1·2·3은 녹화 응답으로 보여 줍니다.[/]")
+        console.print(f"[dim]시도한 주소: {tried}. 설정: harness-cli config --api-base <url> --model <model>.[/]")
     elif live:
         console.print(f"[dim]모델 서버: {settings.api_base} · {settings.model}[/]")
-    if live and not settings.scored_model:
+    if live and not settings.scored_model and task == "medical":
         console.print(f"[yellow]지금 모델은 {settings.model} 입니다. 블록 배지의 정확도·토큰은 "
                       f"{config.ONPREM_MODEL.split('/')[-1]}에서 잰 값이라 이 모델의 성능이 아닙니다.[/]")
-    if session.scratchpad.records:
+    if session.scratchpad.records and task == "medical":
         console.print(f"[dim]~/.harness 에서 세션 기억 {len(session.scratchpad.records)}건을 불러왔습니다 (/memory status).[/]")
     return session
 
 
 def _banner(session: Session) -> None:
-    engine = session.harness.engine
-    ui.banner(console, engine.settings, engine.stats(), session.live, lego.resolve(session.current))
+    if session.task == "medical":
+        engine = session.harness.engine
+        ui.banner(console, engine.settings, engine.stats(), session.live, lego.resolve(session.current))
+    else:
+        ui.study_banner(console, session.settings, session.live, session.mode, session.buddy)
 
 
 def _ask(session: Session, symptoms: str) -> Outcome:
@@ -379,8 +382,11 @@ def _task(session: Session, arg: str) -> None:
     if name == "study":
         console.print(f"[dim]study task: 영어 질문을 입력하세요. 모드 {session.mode} · 노트 {len(session.buddy.chunks)}단락 · "
                       f"규칙 {len(session.buddy.lessons)}건. /load 로 노트 추가.[/]")
+        ui.study_welcome_menu(console)
     else:
-        console.print(f"[dim]medical task: 영어 증상 문장 또는 프리셋 1·2·3. 블록 {session.current}.[/]")
+        session.harness  # load starting medical block
+        console.print(f"[dim]medical task: 22개 질병 연구 재현 벤치마크. 블록: {session.current}.[/]")
+        ui.presets_menu(console)
 
 
 def _inspect(session: Session, arg: str) -> None:
@@ -562,7 +568,9 @@ def compare(
     args: list[str] = typer.Argument(..., help="[블록1 블록2] 프리셋 번호 1·2·3 또는 영어 증상 문장"),
 ) -> None:
     """두 블록을 같은 증상으로 좌우 비교합니다 (블록을 생략하면 기억 없음 vs 시작 블록)."""
-    _compare(_session(), " ".join(args))
+    is_medical = any(a in lego.names() or a in ("1", "2", "3") for a in args)
+    task = "medical" if is_medical else "study"
+    _compare(_session(task=task), " ".join(args))
 
 
 @app.command("study")
@@ -674,19 +682,38 @@ def chat() -> None:
     """대화형 모드 (REPL)."""
     session = _session()
     _banner(session)
-    ui.presets_menu(console)
+    if session.task == "study":
+        ui.study_welcome_menu(console)
+    else:
+        ui.presets_menu(console)
     last: dict[str, Prediction | None] = {"pred": None}
 
     def show_help() -> bool:
+        if session.task == "study":
+            console.print("📚 [bold]실용 학습 모드 (Koog & Hermes) 명령어[/]")
+            console.print("  [bold]/load <파일.md|파일.txt>[/]   내 강의 노트나 공부 자료 불러오기")
+            console.print("  [bold]<질문 내용>[/]                 자료 기반 질문 및 답변 (KNN 검색)")
+            console.print('  [bold]/record "<개념>" -> "<규칙>"[/]  나만의 오답 노트 및 교훈 영구 축적 (Hermes)')
+            console.print("  [bold]/harness <모드>[/]             메모리 전략 교체 (none, knn, cues)")
+            console.print("  [bold]/compare <모드1> <모드2>[/]    동일 질문에 대해 전략별 답변 차이 비교")
+            console.print("  [bold]/profile[/]                    학습자 맞춤 설정 (답변 스타일 등)")
+            console.print("  [bold]/quiz <주제>[/]                불러온 노트로 퀴즈 출제")
+            console.print("  [bold]/info[/]                       현재 로드된 노트와 축적된 교훈 현황")
+            console.print("  [bold]/clear[/]                      화면 지우기")
+            console.print("  [bold]/task medical[/]               🔬 캡스톤 22개 질병 연구 재현 모드로 전환")
+            console.print("  [bold]/exit[/]                       종료 (또는 /q)")
+            return True
         for cmd in registry.commands:
             names = ", ".join(f"/{n}" for n in (cmd.name, *cmd.aliases))
             console.print(f"  [bold]{names}[/]  {cmd.help}")
         console.print("  [bold]1, 2, 3[/]  프리셋 증상을 지금 끼운 블록으로 진단 (medical task)")
         console.print(f"  [dim]medical 블록: {', '.join(lego.names())}[/]")
-        console.print(f"  [dim]study 모드: {', '.join(docqa.MODES)}[/]")
         return True
 
     def show_info() -> bool:
+        if session.task == "study":
+            _study_memory(session, "status")
+            return True
         engine = session.harness.engine
         ui.info(console, engine.stats(), engine.settings)
         return True
@@ -741,8 +768,6 @@ def chat() -> None:
             Command("exit", "종료", lambda: False, ("quit", "q")),
         ]
     )
-    preset_keys = tuple(p.key for p in PRESETS)
-
     while True:
         try:
             label = f"study:{session.mode}" if session.task == "study" else session.current
@@ -750,6 +775,7 @@ def chat() -> None:
         except (EOFError, KeyboardInterrupt):
             console.print()
             break
+        preset_keys = tuple(p.key for p in PRESETS) if session.task == "medical" else ()
         route = route_input(line, registry, preset_keys)
         if route.kind == "empty":
             continue
@@ -761,6 +787,14 @@ def chat() -> None:
                 break
             continue
         if session.task == "study":
+            if line.strip() in ("1", "2", "3"):
+                guide = {
+                    "1": "[dim]자료 불러오기: /load <노트파일.md>[/]",
+                    "2": "[dim]공부할 질문을 영어로 입력하세요 (예: What is the bias-variance tradeoff?)[/]",
+                    "3": '[dim]오답 교훈 영구 축적: /record "<개념>" -> "<규칙>"[/]',
+                }
+                console.print(guide[line.strip()])
+                continue
             _study_ask(session, route.text)
             continue
         if route.kind == "preset":

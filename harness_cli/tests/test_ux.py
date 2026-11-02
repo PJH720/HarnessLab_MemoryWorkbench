@@ -18,6 +18,8 @@ from harness_cli.commands import (
     route_input,
 )
 from harness_cli.config import Settings
+from harness_cli.home import HarnessHome
+from harness_cli.docqa import StudyBuddy
 from harness_cli.engine import EnginePool, ReplayCache
 from harness_cli.presets import PRESETS
 
@@ -237,7 +239,8 @@ NEW_SYMPTOMS = "Bright violet freckles spread across both kneecaps after swimmin
 
 def _session(tmp_path) -> cli.Session:
     pool = EnginePool(Settings.from_env(), ReplayCache(), live=False)
-    return cli.Session(pool, "confusion_contrast")
+    home = HarnessHome(tmp_path)
+    return cli.Session(pool, "confusion_contrast", home, StudyBuddy(home), task="medical")
 
 
 @needs_memories

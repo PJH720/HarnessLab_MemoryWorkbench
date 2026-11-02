@@ -191,6 +191,66 @@ def status_bar(stats: MemoryStats, live: bool) -> Table:
     return bar
 
 
+def study_badges(settings: Settings, live: bool) -> Text:
+    model_name = settings.model.split("/")[-1] if live else "OFFLINE PREVIEW"
+    items = [
+        ("STUDY WORKSPACE", "bold white on #1e3a8a"),
+        ("HERMES DYNAMIC MEMORY", "bold white on #065f46"),
+        ("TF-IDF / KNN RETRIEVAL", "bold white on #374151"),
+        (f"MODEL: {model_name}", f"bold white on {ACCENT}"),
+    ]
+    text = Text()
+    for label, style in items:
+        text.append(f" {label} ", style=style)
+        text.append(" ")
+    return text
+
+
+def study_banner(console: Console, settings: Settings, live: bool, mode: str, buddy: Any = None) -> None:
+    rows = ascii_title()
+    if console.width >= len(rows[0]) + 6:
+        console.print(Text("\n".join(rows), style=f"bold {ACCENT}"))
+    else:
+        console.print(Text(TITLE, style=f"bold {ACCENT}"))
+    chunks_cnt = len(buddy.chunks) if buddy else 0
+    lessons_cnt = len(buddy.lessons) if buddy else 0
+    body: list = [
+        Text("📚 실용 학습 & 영구 기억 어시스턴트 (Koog Study Buddy & Hermes Agent)", style="bold"),
+        Text("내 강의 노트(.md/.txt)를 로드하고, 질문하고, 오답과 교훈을 영구 축적합니다.", style="dim"),
+        Text(),
+        study_badges(settings, live),
+        Text(),
+        Text.assemble(
+            ("현재 상태: ", "bold"),
+            (f"로드된 노트 {chunks_cnt}단락 · 축적된 교훈 {lessons_cnt}건 · 검색 전략: {mode}", "dim"),
+        ),
+        Text(),
+        Text.assemble(
+            ("명령어: ", "bold"),
+            ("/load <파일.md>", ACCENT), (" 자료 로드 · ", "dim"),
+            ("질문 직접 입력", ACCENT), (" 질의응답 · ", "dim"),
+            ("/record <개념> -> <원칙>", ACCENT), (" 교훈 저장 · ", "dim"),
+            ("/compare", ACCENT), (" 전략비교 · ", "dim"),
+            ("/help", ACCENT), (" 안내\n", "dim"),
+            ("🔬 캡스톤 연구 재현 랩: ", "bold cyan"),
+            ("/task medical", ACCENT), (" 22개 질병 8대 동결 메모리 벤치마크로 전환", "dim"),
+        ),
+    ]
+    console.print(Panel(Group(*body), border_style="green", padding=(1, 2)))
+
+
+def study_welcome_menu(console: Console) -> None:
+    table = Table(title="실용 학습 시작 가이드", title_justify="left", show_header=False, expand=True)
+    table.add_column(width=4)
+    table.add_column(ratio=2)
+    table.add_column(ratio=5, overflow="fold")
+    table.add_row(Text("[1]", style=f"bold {ACCENT}"), "자료 불러오기", Text("/load <강의노트.md> 로 공부할 자료를 인덱싱합니다.", style="dim"))
+    table.add_row(Text("[2]", style=f"bold {ACCENT}"), "질의응답", Text("궁금한 질문을 입력하면 노트에서 유사 단락(KNN)을 검색해 답합니다.", style="dim"))
+    table.add_row(Text("[3]", style=f"bold {ACCENT}"), "교훈 축적 (Hermes)", Text('/record "개념" -> "규칙" 으로 나만의 주의점/원칙을 영구 저장합니다.', style="dim"))
+    console.print(table)
+    console.print(Text("💡 팁: 질문을 바로 입력하거나, /task medical 을 입력해 캡스톤 연구 재현 모드로 전환할 수 있습니다.", style="dim"))
+
+
 def banner(console: Console, settings: Settings, stats: MemoryStats | None = None, live: bool = True,
            block: lego.Block | None = None) -> None:
     rows = ascii_title()

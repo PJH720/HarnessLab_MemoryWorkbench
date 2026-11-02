@@ -87,6 +87,7 @@ authorized_keys*
 /CODEX_REASONING_PROMPT.md
 /PLAN.md
 /analysis/tracked_10_prompts.json
+analysis/multiseed/
 *.pdf
 *.doc
 *.docx
