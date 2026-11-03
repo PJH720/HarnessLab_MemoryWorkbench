@@ -8,7 +8,7 @@ dependencies = [
     "rich>=13",
     # Same runtime as harness_lab/text_classification, so the evaluated code runs unchanged
     "datasets",
-    "litellm==1.84.10",
+    "litellm==1.100.4",
     "openai-harmony",
     "tenacity>=8",
     "tqdm",
