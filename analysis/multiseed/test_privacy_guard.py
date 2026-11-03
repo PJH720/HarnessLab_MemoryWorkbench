@@ -65,3 +65,7 @@ def test_pushed_tips_skip_deleted_refs():
     lines = [f"refs/heads/main {tip} refs/heads/main {'c' * 40}",
              f"(delete) {ZERO_OID} refs/heads/old {'d' * 40}", ""]
     assert pushed_tips(lines) == [tip]
+
+
+def test_delete_only_push_publishes_no_commits():
+    assert pushed_tips([f"(delete) {ZERO_OID} refs/heads/old {'d' * 40}"]) == []

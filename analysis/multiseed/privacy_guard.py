@@ -87,9 +87,10 @@ def inspect(mode, tips=None):
     refs = ["INDEX"]
     if mode == "push":
         # Everything reachable from a pushed ref becomes public, not only the new commits.
-        # Without pushed refs (a manual run), check every local commit.
-        scope = tips if tips else ["--all"]
-        refs += git("rev-list", *scope).decode().splitlines()
+        # A manual run (tips is None) checks every local commit; a delete-only push publishes none.
+        scope = ["--all"] if tips is None else tips
+        if scope:
+            refs += git("rev-list", *scope).decode().splitlines()
     findings = []
     seen = set()
     checked = 0
