@@ -3,114 +3,212 @@
 [![Presentation](https://img.shields.io/badge/Presentation-Vercel-black?logo=vercel)](https://harness-midterm-talk.vercel.app)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
-[한국어 문서](README.ko.md) · [Research presentation](https://harness-midterm-talk.vercel.app) · [Figure gallery](analysis/figures/README.md)
+[**한국어 문서 (Korean)**](README.ko.md) · [**Interactive Slide Deck (Vercel)**](https://harness-midterm-talk.vercel.app) · [**Full Figure Gallery**](analysis/figures/README.md)
 
-**Research question.** With the language model frozen, does changing only the memory
-injected into the prompt (the harness) change accuracy, and do model-generated
-diagnostic cues beat plain retrieval of past examples?
+> [!IMPORTANT]
+> **Positioning — Personal Pilot Study & Interactive Experiment Tool**
+>
+> **Research Question:** With a language model frozen (`Qwen3.8-Flash-Next-NVFP4`, reasoning disabled), does changing only the prompt memory (*the harness*) improve accuracy, and do LLM-generated diagnostic cues beat plain example retrieval?
+>
+> **Short Answer:**
+> 1. **Retrieval beats no memory** (`knn_top6` **83.0%** vs `no_memory` **67.0%**, paired bootstrap $\Delta = +16.0\text{\%p}$, $p = 5.6 \times 10^{-6}$ on seed 42).
+> 2. **Top-6 retrieval matches full 60-shot context at 1/5th the token cost** (`knn_top6` **83.0%** vs `fewshot_all` **84.6%**, $p = 0.18$, **$-80.8\%$ input tokens**).
+> 3. **Generated cues did not beat retrieval** (`cue_bank` $-0.8\text{\%p}$, 95% CI $[-3.3, +1.7]$). An apparent $12\text{\%p}$ gap on the 50-item validation split vanished on the 212-item test split ($p = 0.68$).
 
-**Short answer.** Retrieval clearly beats no memory. Selective retrieval of six examples
-matches injecting every example at about one fifth of the input tokens. Generated cues
-did not beat retrieval, and an apparent advantage of retrieval over cues on a 50-item
-validation split did not replicate on the 212-item test split.
+---
 
-This is a personal pilot study run on Symptom2Disease (22 labels) with a frozen
-Qwen3.8-Flash-Next-NVFP4 model, reasoning disabled, three seeds. Disease labels are
-benchmark predictions, not clinical diagnoses.
+## Quick Navigation
 
-## Key findings
+1. [At-a-Glance Summary & Visual Evidence](#1-at-a-glance-summary--visual-evidence)
+2. [Why Validation Misled: Small-Sample Illusion vs. Multi-Seed Test](#2-why-validation-misled-small-sample-illusion-vs-multi-seed-test)
+3. [Why Generated Cues Failed: Error Patterns & Logistic Regression](#3-why-generated-cues-failed-error-patterns--logistic-regression)
+4. [Statistical Rigour: Power Curve, Runtime Noise & Honest Limitations](#4-statistical-rigour-power-curve-runtime-noise--honest-limitations)
+5. [Cross-Domain Pilot: Data-Science ReAct Agent (`ds_tasks`)](#5-cross-domain-pilot-data-science-react-agent-ds_tasks)
+6. [Interactive CLI (`harness-cli`): Study Assistant & Benchmark Replay](#6-interactive-cli-harness-cli-study-assistant--benchmark-replay)
+7. [Repository Architecture, Reproducibility & Privacy](#7-repository-architecture-reproducibility--privacy)
+
+---
+
+## 1. At-a-Glance Summary & Visual Evidence
+
+This pilot evaluates seven memory harnesses on **Symptom2Disease** (22 disease labels, 3 seeds: `42`, `123`, `456`). Disease labels are benchmark text classifications, not clinical diagnoses.
+
+### Visual 1A — Effect Size Against `knn_top6` (Paired Bootstrap 95% CI)
 
 ![Paired bootstrap 95% CI of each system against knn_top6 (test, n=212 per seed)](analysis/figures/fig3_bootstrap_forest_plot.png)
 
-| Finding | Evidence (test split, n=212 per seed, seeds 42/123/456) |
+* **How to read:** Zero (dashed vertical line) represents `knn_top6` performance. Only `no_memory` falls clearly outside the confidence interval ($-16.0\text{\%p}$, 95% CI $[-19.8, -12.4]$). All generated-cue systems (`cue_bank`, `cue_bank_verified`, `reflexion_notes`) straddle zero.
+
+### Visual 1B — Accuracy vs. Input Tokens Pareto Frontier
+
+![Accuracy vs Input Tokens Pareto Frontier](analysis/figures/fig1_accuracy_vs_tokens_pareto.png)
+
+* **How to read:** Injecting all 60 training examples (`fewshot_all`, 607k tokens per test split) yields **84.6%**, whereas retrieving only the 6 closest examples via TF-IDF (`knn_top6`, 117k tokens) yields **83.0%**—cutting input tokens by **80.8%** with no statistically distinguishable drop ($+1.6\text{\%p}$, 95% CI $[-0.8, +3.8]$, pooled Mantel-Haenszel $p = 0.18$).
+
+### Key Findings Table (Test Split, $n = 212$ per seed)
+
+| Core Takeaway | Quantitative Evidence (Seeds 42 / 123 / 456) |
 |---|---|
-| Retrieval memory beats no memory | `knn_top6` 83.0% vs `no_memory` 67.0% (3-seed means); paired bootstrap difference −16.0 points, 95% CI [−19.8, −12.4]; seed 42 exact McNemar p = 5.6e-6, Holm p = 3.3e-5 |
-| Six retrieved examples match all examples at a fraction of the cost | `fewshot_all` 84.6% vs `knn_top6` 83.0%: +1.6 points, CI [−0.8, +3.8], pooled Mantel-Haenszel p = 0.18; `knn_top6` uses 80.8% fewer input tokens |
-| Generated cues do not beat retrieval | `cue_bank` −0.8 points, CI [−3.3, +1.7]; `cue_bank_verified` +0.6, CI [−1.4, +2.7]; `reflexion_notes` −0.5, CI [−2.7, +1.7] |
-| A small-sample gap did not replicate | Validation (n=50): `knn_top6` 41/50 vs `cue_bank` 35/50, p = 0.070; test: 175/212 vs 172/212, p = 0.68 |
-| Cue errors follow the cues | Of `cue_bank` errors where the true label appeared in the cues, 34 of 45 (76%) predicted another disease named in the cues |
-| The model is not deterministic at temperature 0 | Repeating identical calls changed the predicted label on 12-14% of validation items and correctness on 6-8% |
+| **1. Retrieval memory beats no memory** | `knn_top6` **83.0%** vs `no_memory` **67.0%** (3-seed mean); paired bootstrap $-16.0\text{\%p}$ $[-19.8, -12.4]$; seed 42 exact McNemar $p = 5.6 \times 10^{-6}$ (Holm $p = 3.3 \times 10^{-5}$) |
+| **2. Top-6 retrieval matches 60-shot at 1/5th cost** | `fewshot_all` **84.6%** vs `knn_top6` **83.0%**: $+1.6\text{\%p}$, CI $[-0.8, +3.8]$, MH $p = 0.18$; **`knn_top6` saves 80.8% input tokens** |
+| **3. Generated cues do not beat retrieval** | `cue_bank` $-0.8\text{\%p}$ $[-3.3, +1.7]$; `cue_bank_verified` $+0.6\text{\%p}$ $[-1.4, +2.7]$; `reflexion_notes` $-0.5\text{\%p}$ $[-2.7, +1.7]$ |
+| **4. Small-sample gap did not replicate** | Seed 42 validation ($n=50$): `knn_top6` 41/50 (82%) vs `cue_bank` 35/50 (70%), $p = 0.070$ $\rightarrow$ Test ($n=212$): 175/212 vs 172/212, $p = 0.68$ |
+| **5. Cue errors follow injected cues** | Among `cue_bank` errors where the true disease appeared in the injected cues, **34 / 45 (76%)** predicted another disease named in the cues |
+| **6. Temperature 0 is not deterministic** | Repeating identical SGLang FP4 calls flipped predicted labels on **12–14%** of validation items and flipped correctness on **6–8%** |
 
-### What these results do not show
+---
 
-- The preregistered three-seed verdict on the primary hypothesis is **INCOMPLETE**:
-  29 of 37 required result files were analysable; eight seed-456 files are missing.
-- Non-significance does not establish equivalence. A 5-point effect with 20% discordance
-  needs about 658 independent paired questions for 80% power; this study has 212.
-- The three seeds re-evaluate the same 212 test texts, so 636 evaluations are not 636
-  independent questions.
-- One benchmark, one frozen model. No claim of clinical validity.
+## 2. Why Validation Misled: Small-Sample Illusion vs. Multi-Seed Test
 
-The full statistical record is under [Statistical evidence](#verified-historical-snapshot)
-below, and every figure with its reading notes is in the [figure gallery](analysis/figures/README.md).
+A central methodological lesson of this pilot is how easily a 50-item validation split creates false confidence.
 
-## Verified historical snapshot
+| Validation vs. Test Reproducibility (`Fig 4`) | Split & Seed Variance Across Systems (`Fig 2`) |
+|---|---|
+| ![Small sample vs large sample reproducibility](analysis/figures/fig4_sample_size_reproducibility.png) | ![System performance by split and seed](analysis/figures/fig2_system_performance_by_split.png) |
+| **Left (`Fig 4`):** On seed 42, `cue_bank` trailed `knn_top6` by **$-12.0\text{\%p}$** on validation ($n=50$, discordant pairs 7:1, exact $p=0.070$). On the held-out test split ($n=212$) using the exact same frozen memory, the gap shrank to **$-1.4\text{\%p}$** (discordant pairs 13:10, $p=0.678$). | **Right (`Fig 2`):** Because a single question on $n=50$ shifts accuracy by $2.0\text{\%p}$, validation accuracy varied by up to **10.0%p** across seeds, compared to **3.3%p** on the 212-item test split. |
 
-The following is the saved local analysis snapshot from 2026-11-02 02:32 KST,
-not a claim that a fresh clone reproduces the excluded private artifacts.
+---
 
-| Comparison | Correct predictions | Exact McNemar p | Holm-adjusted p | Interpretation |
+## 3. Why Generated Cues Failed: Error Patterns & Logistic Regression
+
+We audited whether LLM-written diagnostic rules (`cue_bank`, `cue_bank_verified`, `reflexion_notes`) act as misleading anchors when injected into the prompt.
+
+![Cognitive anchor features and error attraction](analysis/figures/fig5_cognitive_anchor_features.png)
+
+* **Descriptive Error Attraction (Right Heatmap):** When `cue_bank` made an error despite the true disease being mentioned in the injected cues ($45$ cases across test seeds), **76% ($34/45$)** of its wrong answers selected *another disease explicitly named in those cues*.
+* **Preregistered Clustered Logistic Regression (Middle Panel, H3):** Controlling for question-clustered standard errors, the indicator `target_in_cues` was **not statistically significant** ($\beta = -0.044, p = 0.817$). Instead, correctness was driven by **lexical similarity to retrieved examples** (`max_similarity` error $\beta = -2.921, p = 0.014$) and **prompt length** (`prompt_kchars` $\beta = -1.488, p = 0.003$). Thus, descriptive cue-following does not prove a causal "negative priming" effect beyond retrieval quality.
+
+---
+
+## 4. Statistical Rigour: Power Curve, Runtime Noise & Honest Limitations
+
+| Exact McNemar Power Curve (`Fig 7`) | Local LLM Serving Stochasticity (`Fig 8`) |
+|---|---|
+| ![Statistical power curve](analysis/figures/fig7_power_analysis_curve.png) | ![Runtime stochasticity at temperature 0](analysis/figures/fig8_runtime_stochasticity.png) |
+| **Left (`Fig 7`):** At $20\%$ pair discordance and two-sided $\alpha = 0.05$, detecting a $5\text{\%p}$ difference with $80\%$ power requires **$n = 658$ independent paired questions**. At $n = 50$ power is **0.07**; at $n = 212$ power is only **0.32**. | **Right (`Fig 8`):** Re-running identical prompts at `temperature=0` on the FP4 server changed the predicted label on **6–7 / 50 (12–14%)** items and flipped accuracy on **3–4 / 50 (6–8%)** items. Small validation differences fall inside serving noise. |
+
+> [!WARNING]
+> ### What These Results Do NOT Show (Explicit Limitations)
+> - **Primary 3-Seed Verdict is `INCOMPLETE`:** Only **29 of 37** preregistered result files were analysable (8 `seed 456` files were missing). Under our preregistered rule, no final multi-seed verdict is claimed below 3 complete seeds.
+> - **Non-Significance $\neq$ Equivalence:** Failing to reject the null between `knn_top6` and `cue_bank` ($p = 0.68$) does not prove they are equal; $n = 212$ is underpowered for $<5\text{\%p}$ effects.
+> - **Repeated Evaluations $\neq$ Independent Sample Size:** Evaluating 212 test items across 3 seeds yields 636 trials, **not** 636 independent questions. Primary tests are conducted per seed.
+> - **Single Benchmark & Frozen Model:** Results apply to `Symptom2Disease` on `Qwen3.8-Flash-Next-NVFP4` (zero-think) and carry zero clinical validity.
+
+<details>
+<summary><strong>📊 Click to expand: Verified Historical Snapshot Table (Exact McNemar & Holm-Adjusted p-values)</strong></summary>
+
+The table below is the saved local analysis snapshot from `2026-11-02 02:32 KST`.
+
+| Comparison | Correct Predictions | Exact McNemar $p$ | Holm-Adjusted $p$ | Interpretation |
 |---|---|---:|---:|---|
-| Seed42 test: knn_top6 vs no_memory | 175/212 vs 142/212 | 0.000005550521 | 0.000033303125 | Significant secondary comparison; +15.57 percentage points |
-| Seed42 test: knn_top6 vs cue_bank | 175/212 vs 172/212 | 0.6776394844 | 1.0 | No significant difference found |
-| Seed123 test: knn_top6 vs cue_bank | 173/212 vs 179/212 | 0.2101135254 | 0.8404541016 | No significant difference found; opposite direction |
-| Seed42 validation: knn_top6 vs cue_bank | 41/50 vs 35/50 | 0.0703125 | 0.421875 | No significant difference found, n=50 |
+| **Seed 42 test:** `knn_top6` vs `no_memory` | 175/212 vs 142/212 | `0.00000555` | `0.0000333` | **Significant** secondary comparison ($+15.57\text{\%p}$) |
+| **Seed 42 test:** `knn_top6` vs `cue_bank` | 175/212 vs 172/212 | `0.6776` | `1.0000` | No significant difference found |
+| **Seed 123 test:** `knn_top6` vs `cue_bank` | 173/212 vs 179/212 | `0.2101` | `0.8405` | No significant difference; opposite sign |
+| **Seed 42 val:** `knn_top6` vs `cue_bank` | 41/50 vs 35/50 | `0.0703` | `0.4219` | Not significant after multiplicity ($n=50$) |
 
-The primary three-seed hypothesis remained **INCOMPLETE**: 29 of 37 required new
-result files were analysable. Eight seed456 result files were missing. The
-significant no-memory comparison does not confirm the primary generated-cue
-hypothesis or prove negative priming. All seeds reuse the same test texts;
-636 evaluations are not 636 independent questions. Non-significance does not
-establish equivalence.
+- **Verification audit:** 26 analysis/power unit tests passed; 21 reference comparisons and 350 question rows matched byte-for-byte against original logs.
+- **Reproducing the power plan without private logs:**
+  ```sh
+  mkdir -p analysis/multiseed/out
+  uv run --project harness_lab/text_classification --with scipy \
+    python analysis/multiseed/power_plan.py
+  ```
 
-Saved verification: 26 analysis/power tests passed; 21 reference comparisons and
-350 question rows matched exactly, including a byte-identical reference McNemar
-CSV. The preregistration and 14 original baseline result/memory hashes were
-unchanged. Detailed local evidence remains in the excluded
-`analysis/multiseed/out/validation.json` and related CSV files.
+</details>
 
-Only operational limits changed (20 to 60 DAG transitions; 12 to 21 file checks).
-No scientific settings were tuned after observing significance. A prospective
-scenario with a 5 percentage-point effect and 20% discordance requires 658
-independent paired questions for 80% power at two-sided alpha 0.05. This is an
-assumption-based plan, not a significance guarantee.
+---
 
-## Cache-only statistical analysis
+## 5. Cross-Domain Pilot: Data-Science ReAct Agent (`ds_tasks`)
 
-The multi-seed engine never calls a model. It loads existing run files and cached
-responses through the replay path; a missing response is marked missing rather
-than generated. It includes:
+To test whether the same memory trade-off appears in multi-step tool use, we ran a single-seed pilot on 31 unseen data-science task cards (`eval` split, excluding `train` trajectories).
 
-- Per-seed/split accuracies and exact paired McNemar tests.
-- Seed-stratified matched-pair MH and pooled-discordance exact binomial tests.
-- Holm adjustment for the six comparisons against `knn_top6`.
-- Paired bootstrap within seed, 10,000 draws with random seed 0.
-- Family and cue-feature logistic regressions with registered cluster units.
-- Repeat-noise measurements and explicit input-coverage reporting.
+![Data science agent benchmark pilot](analysis/figures/fig6_ds_tasks_benchmark.png)
 
-The replay workflow requires the local frozen memories, result files, response
-caches, original reference outputs, and preregistration. They are not bundled.
-Internal endpoint strings used in historical cache hashes are redacted in the
-export; exact historical cache replay requires restoring the original cache-key
-configuration privately. Do not interpret a clean-clone replay failure as a new
-experimental observation.
+* **Unseen Evaluation (`eval`, $n = 31$ per harness):**
+  * `ds_knn` (retrieved trajectory examples): **80.6%** ($25/31$), median **2 steps**, **4,334** input tokens.
+  * `ds_base` (no memory): **48.4%** ($15/31$), median **7 steps**, **16,042** input tokens.
+  * `ds_cue_verified` (verified rules): **38.7%** ($12/31$).
+* **Caveat:** Because this is a single-seed pilot and we have not yet audited how closely retrieved `train` trajectories mirror `eval` answers, this is reported as an exploratory observation rather than a confirmed conclusion.
 
-The independent power calculator can be run without experimental outcomes:
+---
+
+## 6. Interactive CLI (`harness-cli`): Study Assistant & Benchmark Replay
+
+`harness_cli` v0.2.2 connects the research findings to an interactive terminal tool with **two strictly separated modes**:
+
+| Mode | Purpose | How to Launch |
+|---|---|---|
+| **1. Practical Study Assistant (`study`, Default)** | Load your own `.md`/`.txt` lecture notes, ask grounded questions via TF-IDF/KNN retrieval, and accumulate persistent rules (`~/.harness`). Zero medical preset clutter on startup. | `uv run --project harness_cli harness-cli` <br> `uv run --project harness_cli harness-cli ask "What is L2 regularization?" --doc notes.md` |
+| **2. Capstone Benchmark Lab (`medical`, Isolated)** | Swap all 8 frozen research memory blocks like Lego bricks, inspect exact injected prompts (`/inspect context`), and compare blocks side-by-side (`/compare`). | `uv run --project harness_cli harness-cli --demo compare no_memory knn_top6 1` <br> Or type `/task medical` inside REPL |
+
+### Quickstart (30 Seconds, No GPU Server Needed)
 
 ```sh
-mkdir -p analysis/multiseed/out
-uv run --project harness_lab/text_classification --with scipy \
-  python analysis/multiseed/power_plan.py
+# 1. Install CLI dependencies
+uv sync --project harness_cli --group dev
+
+# 2. Launch default Practical Study Assistant (interactive REPL)
+uv run --project harness_cli harness-cli
+
+# 3. Replay frozen Capstone research comparisons offline (--demo)
+uv run --project harness_cli harness-cli --demo compare no_memory knn_top6 1
 ```
 
-It writes local planning outputs under `analysis/multiseed/out/`. Sample sizes
-refer to independent paired questions, not repeated evaluations of the same text.
+<details>
+<summary><strong>🛠️ Click to expand: Live LLM Endpoint Configuration, REPL Commands & Standalone Bundle</strong></summary>
 
-## Testing
-
-Statistical and privacy tests that exclude the private reference-replay fixture:
+#### Configuring a Live Model Endpoint (Ollama / OpenAI / vLLM)
+Save your endpoint once in `~/.harness/config.json` (API keys are read from environment variables or `.env`, never written to disk):
 
 ```sh
+# Local Ollama
+uv run --project harness_cli harness-cli config --api-base http://localhost:11434/v1 --model llama3.2:3b
+
+# OpenAI API
+OPENAI_API_KEY=... uv run --project harness_cli harness-cli config --api-base https://api.openai.com/v1 --model gpt-4o-mini
+```
+
+#### Interactive REPL Slash Commands
+
+| Command | Action |
+|---|---|
+| `/load <notes.md\|notes.txt>` | Index personal Markdown/text notes by heading & paragraph (`study` mode) |
+| `/record "<concept>" -> "<rule>"` | Teach a persistent rule (`study`) or session symptom-disease pair (`medical`) |
+| `/harness <name>` (or `/switch`) | Swap active memory strategy (`none`, `knn`, `cues` in study; 8 frozen blocks in medical) |
+| `/compare <A> <B> [query/1-3]` | Run two memory strategies side-by-side and compare prompt tokens, picks, and answers |
+| `/inspect context` | Inspect the exact raw prompt, retrieved chunks/examples, and TF-IDF similarity scores |
+| `/explain fewshot` | Display the logged accuracy-token Pareto frontier and why `fewshot_all` fails to scale |
+| `/profile`, `/quiz [topic]` | Customize learner profile (`~/.harness/profile.json`) or generate 3 review questions |
+| `/task medical` / `/task study` | Explicitly switch between Personal Study Mode and the 22-Disease Research Lab |
+
+#### Building the Standalone Portable Zip
+```sh
+cd harness_cli && uv build && cd ..
+uv run --project harness_cli python scripts/build_standalone.py
+# Produces -> dist/harness-cli-v0.2.2-standalone.zip (includes bundled wheel + 8 frozen memories)
+```
+
+</details>
+
+---
+
+## 7. Repository Architecture, Reproducibility & Privacy
+
+| Directory | Role |
+|---|---|
+| [`analysis/figures/`](analysis/figures/README.md) | 8 publication figures (300 DPI PNG + vector PDF) and automated generation script |
+| `analysis/multiseed/` | Cache-only multi-seed statistical engine, exact McNemar, bootstrap, power planner & privacy guard |
+| `harness_cli/` | Typer/Rich interactive CLI with Practical Study Mode and 8-block Benchmark Replay |
+| `harness_lab/text_classification/` | Memory harness implementations (`no_memory`, `fewshot_all`, `knn_top6`, `cue_bank`, etc.) |
+| `ds_tasks/` | Deterministic data-science task cards, ReAct agent loop, and 2-fold cross-fitting evaluator |
+
+### Running Verification Tests (Clean Clone)
+
+```sh
+# 1. Run CLI unit & integration test suite
+uv run --project harness_cli pytest harness_cli/tests -q
+
+# 2. Run statistical engine, power planner, and privacy guard tests
 uv run --project harness_lab/text_classification \
   --with scipy --with statsmodels --with pandas --with pytest \
   python -m pytest analysis/multiseed/test_stats.py \
@@ -119,228 +217,10 @@ uv run --project harness_lab/text_classification \
   -q -p no:cacheprovider --basetemp analysis/multiseed/.pytest-tmp
 ```
 
-The omitted replay/parity test requires private fixtures and cannot pass in an
-export without them. CLI tests use stubs; tests requiring a frozen memory are skipped if
-it is absent. Classification data tests and data-science reference tests also
-require the omitted datasets. Check prerequisites before selecting a full suite.
-
-## Components
-
-| Directory | Responsibility |
-|---|---|
-| `harness_lab/text_classification/` | Memory implementations, online learning/evaluation, benchmark orchestration, and contract tests |
-| `harness_cli/` | Typer/Rich terminal interface with interactive and single-question modes |
-| `ds_tasks/` | Data-science reference pipeline, deterministic task cards, ReAct loop, and answer scoring |
-| `analysis/harness_stats.py` | Original single-seed replay, feature extraction, and statistical diagnosis |
-| `analysis/multiseed/` | Cache-only multi-seed analysis, exact paired tests, bootstrap, clustered regressions, power planning, and privacy checks |
-
-Memory strategies include `no_memory`, `fewshot_all`, `knn_top6`,
-`contrast_online`, `reflexion_notes`, `cue_bank`, and `cue_bank_verified`.
-The experiments distinguish retrieved examples from generated diagnostic cues
-and notes. Generated memories have explicit accounting for accepted entries,
-rejected candidates, and parse failures.
-
-## Requirements and setup
-
-- Python 3.11 or newer and `uv`.
-- Git; GitHub CLI is only needed for repository administration.
-- A separately provisioned model endpoint for live inference.
-- Approved local datasets and frozen memories for data-dependent evaluation.
-
-From the repository root, install only the component you need:
-
-```sh
-uv sync --project harness_cli --group dev
-uv sync --project harness_lab/text_classification
-uv sync --project ds_tasks --group dev
-```
-
-Dependency installation may access package registries. It does not launch model
-inference. Do not run the experiment commands until your own endpoint, data,
-access permissions, and spending limits are configured.
-
-## Terminal application
-
-`harness_cli` v0.2.2 is a terminal front-end for the evaluated memory systems,
-with a second task for question answering over your own English notes.
-The model stays fixed; only the memory injected into the prompt (the harness)
-changes. Eight memory "blocks" share one interface: the seven online-v2 systems
-(`no_memory`, `fewshot_all`, `knn_top6`, `contrast_online`, `cue_bank`,
-`cue_bank_verified`, `reflexion_notes`) and the midterm candidate
-`confusion_contrast`. The background and the full results are in the
-[research presentation](https://harness-midterm-talk.vercel.app).
-
-```sh
-uv run --project harness_cli harness-cli --help
-uv run --project harness_cli harness-cli --demo          # replayed answers, no model server
-uv run --project harness_cli harness-cli --demo compare no_memory knn_top6 1
-```
-
-Configure the CLI through environment variables in your own shell or an ignored
-local environment file. Never commit real keys or endpoint details.
-
-| Variable | Meaning |
-|---|---|
-| `HARNESS_SYSTEM` | Starting block name or alias; the CLI defaults to `confusion_contrast` |
-| `HARNESS_MEMORY` | Overrides the bundled memory of the starting block only |
-| `HARNESS_DATA_ROOT` | Folder that holds `harness_lab/` (agent code); defaults to the checkout |
-| `HARNESS_MODEL` | LiteLLM-compatible model identifier; without it, a non-default endpoint uses the first model its `/models` lists |
-| `HARNESS_API_BASE` | Your own OpenAI-compatible endpoint URL (tried first) |
-| `OPENAI_BASE_URL` | Second endpoint to try, e.g. vLLM, OpenRouter, or Ollama at `http://localhost:11434/v1` |
-| `OPENAI_API_KEY` | Provider credential if required by your endpoint (sent to `/models` and chat calls, never stored) |
-| `HARNESS_HOME` | Folder for the persistent profile and scratchpad; defaults to `~/.harness` |
-
-At startup the CLI probes `HARNESS_API_BASE`, `OPENAI_BASE_URL`, the built-in default and a local
-Ollama in that order and uses the first that answers `/models`. When the live model is not the one
-the results were measured on, the CLI says so: the logged accuracies describe that model only.
-
-The source export replaces internal endpoint defaults with a non-resolving
-`.invalid` placeholder. On a new machine, point the CLI at an endpoint once; the
-setting is saved in `~/.harness/config.json` (never the key):
-
-```sh
-uv run --project harness_cli harness-cli config --api-base http://localhost:11434/v1 --model llama3.2:3b
-OPENAI_API_KEY=... uv run --project harness_cli harness-cli config   # api.openai.com, gpt-4o-mini
-```
-
-Then:
-
-```sh
-# These commands perform model inference once configured.
-uv run --project harness_cli harness-cli
-uv run --project harness_cli harness-cli predict "Fever and chills" --json
-uv run --project harness_cli harness-cli info
-```
-
-Interactive commands:
-
-| Command | Effect |
-|---|---|
-| `/harness <name>` (alias `/switch`) | Swap the active block; without a name, list all eight |
-| `/compare <block1> <block2> [1-3 or text]` | Run two blocks side by side: diagnosis, prompt size and tokens, latency, top retrieved examples, and the logged test accuracy of each |
-| `/record "<symptoms>" -> "<disease>"` | Add an example to the session memory (English, one of the 22 labels) |
-| `/memory status`, `/memory reset` | Frozen versus session examples per block; drop the session examples |
-| `/study` | Four-step guide: no memory, example selection, injected cues, free experiment |
-| `/task medical`, `/task study` | Switch between the 22-disease benchmark and question answering over your notes |
-| `/load <notes.md\|notes.txt>` | Chunk English notes by heading and paragraph, index them, and switch to the study task |
-| `/harness no_memory\|knn_retrieval\|lesson_cues` | In the study task: question only; top-4 note chunks by TF-IDF; up to 5 taught rules plus 2 chunks |
-| `/record "<concept>" -> "<rule>"` | In the study task: teach a rule; it is retrievable from the next question on |
-| `/inspect context` | Raw prompt of the last query, each injected example with its TF-IDF score and why it was chosen (top-k, past mistake, label coverage) |
-| `/explain fewshot` | Why `fewshot_all` does not scale, with the logged accuracy, per-query tokens and the computed accuracy-token Pareto frontier |
-| `/profile`, `/profile set <field> <value>` | Learner profile (`target_exam`, `topics`, `style`, `name`), added as one line to grounded study prompts |
-| `/quiz [topic]` | Ask for three review questions with answers from the loaded notes |
-| `/help`, `/info`, `/why`, `/clear`, `/exit` | As in v0.1 |
-
-Memory has three tiers. The frozen `memory.json` files are only read; the CLI refuses any
-`HARNESS_HOME` inside the frozen logs. `/record` additions and taught study rules are kept in
-`~/.harness/scratchpad.json` and reloaded in the next session, until `/memory reset`;
-`~/.harness/profile.json` holds the learner profile. Loaded notes live only in the session.
-`--demo` neither reads nor writes `~/.harness`, so replayed presets always use the frozen memory. A recorded example enters the retrieval of every block
-that uses examples; in `cue_bank`, `cue_bank_verified` and `reflexion_notes` it
-changes only the similar-examples section, because writing new cues or notes
-needs a model call.
-
-`--demo` (or an unreachable server) answers from `replay.json`, which holds real
-server responses for presets 1-3 on all eight blocks. Any other input, and any input after
-`/record` changed the memory, gets an offline retrieval preview: the exact prompt the active
-block would send, the retrieved examples and a token estimate, with no diagnosis
-(`predict` exits with code 2). Study questions without a server get the same preview.
-In the recorded presets both `no_memory` and `knn_top6` answer correctly, so a
-single case does not show the difference between systems; the CLI shows the
-logged results next to each comparison. The eight frozen memories ship inside the
-package (`harness_cli/src/harness_cli/data/memories/`, byte-identical to the research
-logs, which a test checks when the logs are present), so a fresh clone runs without
-`logs/` or `HARNESS_DATA_ROOT`.
-
-The figures the CLI displays come from `analysis/multiseed/out/accuracy_tokens.csv`
-(test split, n=212 per seed, seeds 42/123/456):
-
-| Block | Test accuracy (n=212) | Note |
-|---|---|---|
-| `no_memory` | 67.0% | 3-seed mean; baseline |
-| `knn_top6` | 83.0% | 3-seed mean; 80.8% fewer input tokens than `fewshot_all` |
-| `fewshot_all` | 84.6% | 3-seed mean; not distinguishable from `knn_top6` (pooled Mantel-Haenszel p = 0.18, before Holm) |
-| `confusion_contrast` | 80.7% | Seed 42 single run (validation 82.0%, n=50) |
-
-The seed 42, 50-item validation gap between `knn_top6` and `cue_bank` (41/50 vs 35/50,
-p = 0.070) was not replicated on the 212-item test split (175/212 vs 172/212,
-p = 0.68); see the verified snapshot below.
-
-### Standalone bundle
-
-```sh
-cd harness_cli && uv build && cd ..
-uv run --project harness_cli python scripts/build_standalone.py
-# -> dist/harness-cli-v0.2.2-standalone.zip
-```
-
-The zip holds the wheel (with the eight frozen memories inside), the runtime code of
-`harness_lab/text_classification`, and `run.sh`, which starts
-`harness-cli --demo` through `uv run --with <wheel>`. It needs `uv` and, on first
-run, PyPI access for the dependencies; it does not need the model server. The
-dataset splits are not included: the prompt template comes from a copy inside
-the wheel that the tests pin to the dataset prompt. The bundled memories contain
-Symptom2Disease training examples written by the evaluated runs.
-
-## Classification and data-science workflows
-
-The classification inner loop evaluates a memory system on a named dataset;
-the benchmark and meta-harness orchestrate candidate evaluation and selection.
-Selection uses validation data; test evaluation should follow a fixed selection
-and analysis plan. Internal `config.yaml` and raw JSONL datasets are excluded from
-the source export. Recreate an approved local configuration before running sweeps.
-
-Data provenance for the vendored classification tasks is documented in
-[`data/README.md`](harness_lab/text_classification/data/README.md). The
-Symptom2Disease files were obtained through the MCE artifact distribution.
-No raw patient-text records are included in this export. This benchmark is not
-evidence of clinical validity or a representative prospective patient study.
-
-`ds_tasks/` includes task cards and a deterministic reference pipeline for churn
-and Census-derived analysis. Raw source data and cloned reference repositories
-are excluded. Set `CHURN_DATA_DIR` to an approved local data directory. Live
-agent runs also require `DS_AGENT_BASE_URL`, `DS_AGENT_MODEL`, and the endpoint's
-credential. The runner uses two-fold cross-fitting: memory is learned on one
-fold, evaluated on the other, and the folds are then swapped.
-
-## Scope and next steps
-
-The research presentation is an HTML slide deck that runs in the browser:
-**[View the presentation](https://harness-midterm-talk.vercel.app)**.
-
-This repository is a frozen personal pilot. It combines symptom-to-disease text
-classification, a terminal application, deterministic data-science task cards, and
-paired statistical analysis. The GitHub distribution is a privacy-reviewed source
-snapshot: private datasets, trained memories, reports, credentials, inference caches,
-and the original development history are intentionally excluded.
-
-The evaluation protocol (memory contracts and audits, cache-only replay, exact paired
-tests with Holm adjustment, power planning, and the rule of reporting no conclusion
-below three seeds) is the part intended for reuse. A larger follow-up with an agent
-study group will start in a separate repository with an independent test set sized
-by the power plan above.
-
-## Privacy and publication
-
-The repository ignores reports, presentations, credentials, raw datasets,
-memories, logs, caches, and agent session state. The original development history
-is not part of the GitHub snapshot. Internal endpoint defaults in exported source
-are replaced with non-resolving placeholders.
-
-Offline guards are provided in `analysis/multiseed/hooks/`. To enable them in a
-new clone:
-
-```sh
-git config --local core.hooksPath analysis/multiseed/hooks
-```
-
-See [publication privacy](analysis/multiseed/docs/publication_privacy.md).
-Hooks can be bypassed and pattern scans cannot identify every type of private
-information. Review every change manually before it is pushed to this public repository.
-
-## Attribution and licensing
-
-The adapted Meta-Harness material retains its upstream MIT notice in
-[`harness_lab/LICENSE-meta-harness`](harness_lab/LICENSE-meta-harness).
-Dataset and other upstream materials have their own terms. No new blanket
-license or redistribution permission for excluded datasets is asserted here.
+### Scope, Privacy & Attribution
+- **Next Steps (Team Study):** This repository is a **frozen personal pilot**. The reusable assets are the evaluation contracts, cache-only statistical pipeline, power calculation ($n=658$), and automated privacy guard. Follow-up research with the agent study group will take place in a separate repository.
+- **Privacy Guard:** Raw patient texts, personal reports, inference caches, and internal hostnames are excluded. Enable local pre-commit/pre-push hooks in a clone via:
+  ```sh
+  git config --local core.hooksPath analysis/multiseed/hooks
+  ```
+- **Attribution:** Adapted Meta-Harness code retains its upstream MIT notice in [`harness_lab/LICENSE-meta-harness`](harness_lab/LICENSE-meta-harness). Upstream datasets carry their own respective terms.
