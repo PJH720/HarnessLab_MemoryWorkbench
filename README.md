@@ -1,21 +1,125 @@
 # Project101: Memory-Augmented Agent Evaluation
 
-[한국어 문서](README.ko.md)
+[한국어 문서](README.ko.md) · [Research presentation](https://harness-midterm-talk.vercel.app) · [Figure gallery](analysis/figures/README.md)
 
-## Research presentation
+**Research question.** With the language model frozen, does changing only the memory
+injected into the prompt (the harness) change accuracy, and do model-generated
+diagnostic cues beat plain retrieval of past examples?
 
-The research presentation is deployed as an HTML slide deck on Vercel:
-**[View the presentation in your browser](https://harness-midterm-talk.vercel.app)**.
-The deployed presentation can be viewed without cloning or running this repository.
+**Short answer.** Retrieval clearly beats no memory. Selective retrieval of six examples
+matches injecting every example at about one fifth of the input tokens. Generated cues
+did not beat retrieval, and an apparent advantage of retrieval over cues on a 50-item
+validation split did not replicate on the 212-item test split.
 
-A research workspace for comparing memory strategies in language-model agents.
-It combines symptom-to-disease text classification, a terminal application,
-deterministic data-science task cards, and paired statistical analysis.
+This is a personal pilot study run on Symptom2Disease (22 labels) with a frozen
+Qwen3.8-Flash-Next-NVFP4 model, reasoning disabled, three seeds. Disease labels are
+benchmark predictions, not clinical diagnoses.
 
-This is a research prototype. Disease labels are benchmark predictions, not
-clinical diagnoses. The GitHub distribution is a privacy-reviewed source snapshot:
-private datasets, trained memories, reports, credentials, inference caches, and
-the original development history are intentionally excluded.
+## Key findings
+
+![Paired bootstrap 95% CI of each system against knn_top6 (test, n=212 per seed)](analysis/figures/fig3_bootstrap_forest_plot.png)
+
+| Finding | Evidence (test split, n=212 per seed, seeds 42/123/456) |
+|---|---|
+| Retrieval memory beats no memory | `knn_top6` 83.0% vs `no_memory` 67.0% (3-seed means); paired bootstrap difference −16.0 points, 95% CI [−19.8, −12.4]; seed 42 exact McNemar p = 5.6e-6, Holm p = 3.3e-5 |
+| Six retrieved examples match all examples at a fraction of the cost | `fewshot_all` 84.6% vs `knn_top6` 83.0%: +1.6 points, CI [−0.8, +3.8], pooled Mantel-Haenszel p = 0.18; `knn_top6` uses 80.8% fewer input tokens |
+| Generated cues do not beat retrieval | `cue_bank` −0.8 points, CI [−3.3, +1.7]; `cue_bank_verified` +0.6, CI [−1.4, +2.7]; `reflexion_notes` −0.5, CI [−2.7, +1.7] |
+| A small-sample gap did not replicate | Validation (n=50): `knn_top6` 41/50 vs `cue_bank` 35/50, p = 0.070; test: 175/212 vs 172/212, p = 0.68 |
+| Cue errors follow the cues | Of `cue_bank` errors where the true label appeared in the cues, 34 of 45 (76%) predicted another disease named in the cues |
+| The model is not deterministic at temperature 0 | Repeating identical calls changed the predicted label on 12-14% of validation items and correctness on 6-8% |
+
+### What these results do not show
+
+- The preregistered three-seed verdict on the primary hypothesis is **INCOMPLETE**:
+  29 of 37 required result files were analysable; eight seed-456 files are missing.
+- Non-significance does not establish equivalence. A 5-point effect with 20% discordance
+  needs about 658 independent paired questions for 80% power; this study has 212.
+- The three seeds re-evaluate the same 212 test texts, so 636 evaluations are not 636
+  independent questions.
+- One benchmark, one frozen model. No claim of clinical validity.
+
+The full statistical record is under [Statistical evidence](#verified-historical-snapshot)
+below, and every figure with its reading notes is in the [figure gallery](analysis/figures/README.md).
+
+## Verified historical snapshot
+
+The following is the saved local analysis snapshot from 2026-11-02 02:32 KST,
+not a claim that a fresh clone reproduces the excluded private artifacts.
+
+| Comparison | Correct predictions | Exact McNemar p | Holm-adjusted p | Interpretation |
+|---|---|---:|---:|---|
+| Seed42 test: knn_top6 vs no_memory | 175/212 vs 142/212 | 0.000005550521 | 0.000033303125 | Significant secondary comparison; +15.57 percentage points |
+| Seed42 test: knn_top6 vs cue_bank | 175/212 vs 172/212 | 0.6776394844 | 1.0 | No significant difference found |
+| Seed123 test: knn_top6 vs cue_bank | 173/212 vs 179/212 | 0.2101135254 | 0.8404541016 | No significant difference found; opposite direction |
+| Seed42 validation: knn_top6 vs cue_bank | 41/50 vs 35/50 | 0.0703125 | 0.421875 | No significant difference found, n=50 |
+
+The primary three-seed hypothesis remained **INCOMPLETE**: 29 of 37 required new
+result files were analysable. Eight seed456 result files were missing. The
+significant no-memory comparison does not confirm the primary generated-cue
+hypothesis or prove negative priming. All seeds reuse the same test texts;
+636 evaluations are not 636 independent questions. Non-significance does not
+establish equivalence.
+
+Saved verification: 26 analysis/power tests passed; 21 reference comparisons and
+350 question rows matched exactly, including a byte-identical reference McNemar
+CSV. The preregistration and 14 original baseline result/memory hashes were
+unchanged. Detailed local evidence remains in the excluded
+`analysis/multiseed/out/validation.json` and related CSV files.
+
+Only operational limits changed (20 to 60 DAG transitions; 12 to 21 file checks).
+No scientific settings were tuned after observing significance. A prospective
+scenario with a 5 percentage-point effect and 20% discordance requires 658
+independent paired questions for 80% power at two-sided alpha 0.05. This is an
+assumption-based plan, not a significance guarantee.
+
+## Cache-only statistical analysis
+
+The multi-seed engine never calls a model. It loads existing run files and cached
+responses through the replay path; a missing response is marked missing rather
+than generated. It includes:
+
+- Per-seed/split accuracies and exact paired McNemar tests.
+- Seed-stratified matched-pair MH and pooled-discordance exact binomial tests.
+- Holm adjustment for the six comparisons against `knn_top6`.
+- Paired bootstrap within seed, 10,000 draws with random seed 0.
+- Family and cue-feature logistic regressions with registered cluster units.
+- Repeat-noise measurements and explicit input-coverage reporting.
+
+The replay workflow requires the local frozen memories, result files, response
+caches, original reference outputs, and preregistration. They are not bundled.
+Internal endpoint strings used in historical cache hashes are redacted in the
+export; exact historical cache replay requires restoring the original cache-key
+configuration privately. Do not interpret a clean-clone replay failure as a new
+experimental observation.
+
+The independent power calculator can be run without experimental outcomes:
+
+```sh
+mkdir -p analysis/multiseed/out
+uv run --project harness_lab/text_classification --with scipy \
+  python analysis/multiseed/power_plan.py
+```
+
+It writes local planning outputs under `analysis/multiseed/out/`. Sample sizes
+refer to independent paired questions, not repeated evaluations of the same text.
+
+## Testing
+
+Statistical and privacy tests that exclude the private reference-replay fixture:
+
+```sh
+uv run --project harness_lab/text_classification \
+  --with scipy --with statsmodels --with pandas --with pytest \
+  python -m pytest analysis/multiseed/test_stats.py \
+  analysis/multiseed/test_power_plan.py analysis/multiseed/test_privacy_guard.py \
+  -k 'not reference_replay_matches_original_features_and_all_pairs' \
+  -q -p no:cacheprovider --basetemp analysis/multiseed/.pytest-tmp
+```
+
+The omitted replay/parity test requires private fixtures and cannot pass in an
+export without them. CLI tests use stubs; tests requiring a frozen memory are skipped if
+it is absent. Classification data tests and data-science reference tests also
+require the omitted datasets. Check prerequisites before selecting a full suite.
 
 ## Components
 
@@ -196,93 +300,29 @@ agent runs also require `DS_AGENT_BASE_URL`, `DS_AGENT_MODEL`, and the endpoint'
 credential. The runner uses two-fold cross-fitting: memory is learned on one
 fold, evaluated on the other, and the folds are then swapped.
 
-## Cache-only statistical analysis
+## Scope and next steps
 
-The multi-seed engine never calls a model. It loads existing run files and cached
-responses through the replay path; a missing response is marked missing rather
-than generated. It includes:
+The research presentation is an HTML slide deck that runs in the browser:
+**[View the presentation](https://harness-midterm-talk.vercel.app)**.
 
-- Per-seed/split accuracies and exact paired McNemar tests.
-- Seed-stratified matched-pair MH and pooled-discordance exact binomial tests.
-- Holm adjustment for the six comparisons against `knn_top6`.
-- Paired bootstrap within seed, 10,000 draws with random seed 0.
-- Family and cue-feature logistic regressions with registered cluster units.
-- Repeat-noise measurements and explicit input-coverage reporting.
+This repository is a frozen personal pilot. It combines symptom-to-disease text
+classification, a terminal application, deterministic data-science task cards, and
+paired statistical analysis. The GitHub distribution is a privacy-reviewed source
+snapshot: private datasets, trained memories, reports, credentials, inference caches,
+and the original development history are intentionally excluded.
 
-The replay workflow requires the local frozen memories, result files, response
-caches, original reference outputs, and preregistration. They are not bundled.
-Internal endpoint strings used in historical cache hashes are redacted in the
-export; exact historical cache replay requires restoring the original cache-key
-configuration privately. Do not interpret a clean-clone replay failure as a new
-experimental observation.
-
-The independent power calculator can be run without experimental outcomes:
-
-```sh
-mkdir -p analysis/multiseed/out
-uv run --project harness_lab/text_classification --with scipy \
-  python analysis/multiseed/power_plan.py
-```
-
-It writes local planning outputs under `analysis/multiseed/out/`. Sample sizes
-refer to independent paired questions, not repeated evaluations of the same text.
-
-## Verified historical snapshot
-
-The following is the saved local analysis snapshot from 2026-11-02 02:32 KST,
-not a claim that a fresh clone reproduces the excluded private artifacts.
-
-| Comparison | Correct predictions | Exact McNemar p | Holm-adjusted p | Interpretation |
-|---|---|---:|---:|---|
-| Seed42 test: knn_top6 vs no_memory | 175/212 vs 142/212 | 0.000005550521 | 0.000033303125 | Significant secondary comparison; +15.57 percentage points |
-| Seed42 test: knn_top6 vs cue_bank | 175/212 vs 172/212 | 0.6776394844 | 1.0 | No significant difference found |
-| Seed123 test: knn_top6 vs cue_bank | 173/212 vs 179/212 | 0.2101135254 | 0.8404541016 | No significant difference found; opposite direction |
-| Seed42 validation: knn_top6 vs cue_bank | 41/50 vs 35/50 | 0.0703125 | 0.421875 | No significant difference found, n=50 |
-
-The primary three-seed hypothesis remained **INCOMPLETE**: 29 of 37 required new
-result files were analysable. Eight seed456 result files were missing. The
-significant no-memory comparison does not confirm the primary generated-cue
-hypothesis or prove negative priming. All seeds reuse the same test texts;
-636 evaluations are not 636 independent questions. Non-significance does not
-establish equivalence.
-
-Saved verification: 26 analysis/power tests passed; 21 reference comparisons and
-350 question rows matched exactly, including a byte-identical reference McNemar
-CSV. The preregistration and 14 original baseline result/memory hashes were
-unchanged. Detailed local evidence remains in the excluded
-`analysis/multiseed/out/validation.json` and related CSV files.
-
-Only operational limits changed (20 to 60 DAG transitions; 12 to 21 file checks).
-No scientific settings were tuned after observing significance. A prospective
-scenario with a 5 percentage-point effect and 20% discordance requires 658
-independent paired questions for 80% power at two-sided alpha 0.05. This is an
-assumption-based plan, not a significance guarantee.
-
-## Testing
-
-Statistical and privacy tests that exclude the private reference-replay fixture:
-
-```sh
-uv run --project harness_lab/text_classification \
-  --with scipy --with statsmodels --with pandas --with pytest \
-  python -m pytest analysis/multiseed/test_stats.py \
-  analysis/multiseed/test_power_plan.py analysis/multiseed/test_privacy_guard.py \
-  -k 'not reference_replay_matches_original_features_and_all_pairs' \
-  -q -p no:cacheprovider --basetemp analysis/multiseed/.pytest-tmp
-```
-
-The omitted replay/parity test requires private fixtures and cannot pass in an
-export without them. CLI tests use stubs; tests requiring a frozen memory are skipped if
-it is absent. Classification data tests and data-science reference tests also
-require the omitted datasets. Check prerequisites before selecting a full suite.
+The evaluation protocol (memory contracts and audits, cache-only replay, exact paired
+tests with Holm adjustment, power planning, and the rule of reporting no conclusion
+below three seeds) is the part intended for reuse. A larger follow-up with an agent
+study group will start in a separate repository with an independent test set sized
+by the power plan above.
 
 ## Privacy and publication
 
 The repository ignores reports, presentations, credentials, raw datasets,
 memories, logs, caches, and agent session state. The original development history
 is not part of the GitHub snapshot. Internal endpoint defaults in exported source
-are replaced with non-resolving placeholders. No personal commit identity is
-used for the source-export commit.
+are replaced with non-resolving placeholders.
 
 Offline guards are provided in `analysis/multiseed/hooks/`. To enable them in a
 new clone:
@@ -293,7 +333,7 @@ git config --local core.hooksPath analysis/multiseed/hooks
 
 See [publication privacy](analysis/multiseed/docs/publication_privacy.md).
 Hooks can be bypassed and pattern scans cannot identify every type of private
-information. Keep manual review and GitHub private visibility as separate controls.
+information. Review every change manually before it is pushed to this public repository.
 
 ## Attribution and licensing
 

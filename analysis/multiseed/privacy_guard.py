@@ -22,11 +22,17 @@ PATTERNS = {
         rb"\s*[:=]\s*['\"][^'\"\r\n]{12,}['\"]", re.I,
     ),
 }
+# Templates such as .env.example are not opened as secrets; their content is still scanned.
 SECRET_PATH = re.compile(
-    r"(?:^|/)(?:\.env(?:\..*)?|\.credentials.*|\.netrc|auth\.(?:json|toml))$"
+    r"(?:^|/)(?:\.env(?:\.(?!(?:example|sample|template)$).*)?|\.credentials.*|\.netrc|auth\.(?:json|toml))$"
     r"|(?:credential|secret)|(?:^|/)(?:\.aws|\.ssh|session-env|shell-snapshots)/",
     re.I,
 )
+# GitHub noreply addresses are designed to be public; any other address in an identity blocks.
+NOREPLY_IDENTITY = re.compile(rb"[\w.+\[\]-]+@users\.noreply\.github\.com|\bnoreply@github\.com")
+# Binaries cannot be pattern-scanned, so each one passes only by its exact reviewed blob id.
+REVIEWED_BINARIES = "analysis/multiseed/reviewed_binaries.txt"
+ZERO_OID = "0" * 40
 MAX_BLOB_BYTES = 5_000_000
 
 
@@ -47,12 +53,43 @@ def content_findings(content):
     return [label for label, pattern in PATTERNS.items() if pattern.search(content)]
 
 
-def inspect(mode):
+def identity_findings(identity):
+    return content_findings(NOREPLY_IDENTITY.sub(b"", identity))
+
+
+def reviewed_binaries(root):
+    """Lines of '<blob id> <path>'; a changed byte changes the id and blocks again."""
+    path = root / REVIEWED_BINARIES
+    if not path.exists():
+        return set()
+    entries = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            oid, name = line.split(maxsplit=1)
+            entries.add((name, oid))
+    return entries
+
+
+def pushed_tips(lines):
+    """Local commit ids from pre-push stdin; deleted refs publish nothing."""
+    tips = []
+    for line in lines:
+        fields = line.split()
+        if len(fields) == 4 and fields[1] != ZERO_OID:
+            tips.append(fields[1])
+    return tips
+
+
+def inspect(mode, tips=None):
     root = Path(git("rev-parse", "--show-toplevel").decode().strip())
-    # Include every reachable local commit: conservative even for a single-ref push.
+    allowed_binaries = reviewed_binaries(root)
     refs = ["INDEX"]
     if mode == "push":
-        refs += git("rev-list", "--all").decode().splitlines()
+        # Everything reachable from a pushed ref becomes public, not only the new commits.
+        # Without pushed refs (a manual run), check every local commit.
+        scope = tips if tips else ["--all"]
+        refs += git("rev-list", *scope).decode().splitlines()
     findings = []
     seen = set()
     checked = 0
@@ -60,7 +97,7 @@ def inspect(mode):
         if ref != "INDEX":
             # Commit identities are published too; do not record their values.
             identity = git("show", "-s", "--format=%an <%ae>%n%cn <%ce>", ref)
-            if content_findings(identity):
+            if identity_findings(identity):
                 findings.append({"path": "<commit metadata>",
                                  "reason": "personal-commit-identity", "revision": ref})
         if ref == "INDEX":
@@ -99,6 +136,8 @@ def inspect(mode):
             else:
                 checked += 1
                 reasons = content_findings(git("cat-file", "blob", oid))
+                if reasons == ["unreviewed-binary"] and (path, oid) in allowed_binaries:
+                    reasons = []
             for reason in reasons:
                 findings.append({"path": path, "reason": reason, "revision": ref})
     return {"mode": mode, "status": "BLOCKED" if findings else "PASS",
@@ -112,7 +151,10 @@ def main():
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
-        report = inspect(args.mode)
+        tips = None
+        if args.mode == "push" and not sys.stdin.isatty():
+            tips = pushed_tips(sys.stdin.read().splitlines())
+        report = inspect(args.mode, tips)
         if args.output:
             allowed = Path("analysis/multiseed/out").resolve()
             target = args.output.resolve()

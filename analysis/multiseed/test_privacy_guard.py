@@ -1,6 +1,9 @@
 """Synthetic-only checks: no credentials or network access."""
 
-from privacy_guard import SECRET_PATH, content_findings
+from privacy_guard import (
+    REVIEWED_BINARIES, SECRET_PATH, ZERO_OID, content_findings, identity_findings,
+    pushed_tips, reviewed_binaries,
+)
 
 
 def test_sensitive_content_is_detected():
@@ -29,3 +32,36 @@ def test_safe_source_and_unknown_binary():
 def test_secret_paths_are_blocked_before_reading():
     for path in [".credentials.json", "app/.env.prod", ".aws/config", "private/secret.txt"]:
         assert SECRET_PATH.search(path)
+
+
+def test_env_templates_are_scanned_not_skipped():
+    for path in [".env.example", "harness_cli/.env.sample", "app/.env.template"]:
+        assert not SECRET_PATH.search(path)
+    for path in [".env", ".env.local", "app/.env.example.bak"]:
+        assert SECRET_PATH.search(path)
+
+
+def test_noreply_identity_passes_but_personal_identity_blocks():
+    at = b"@"
+    bot = (b"dependabot[bot] <49699333+dependabot[bot]" + at + b"users.noreply.github.com>\n"
+           b"GitHub <noreply" + at + b"github.com>")
+    assert identity_findings(bot) == []
+    personal = b"Some" + b"one <person" + b"@" + b"example.invalid>"
+    assert "email-address" in identity_findings(personal)
+    named = b"Jaehyun" + b" Park <1+someone" + at + b"users.noreply.github.com>"
+    assert "personal-name" in identity_findings(named)
+
+
+def test_reviewed_binaries_match_exact_blob_id(tmp_path):
+    manifest = tmp_path / REVIEWED_BINARIES
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("# reviewed\n" + "a" * 40 + " analysis/figures/fig.png\n")
+    assert reviewed_binaries(tmp_path) == {("analysis/figures/fig.png", "a" * 40)}
+    assert reviewed_binaries(tmp_path / "missing") == set()
+
+
+def test_pushed_tips_skip_deleted_refs():
+    tip = "b" * 40
+    lines = [f"refs/heads/main {tip} refs/heads/main {'c' * 40}",
+             f"(delete) {ZERO_OID} refs/heads/old {'d' * 40}", ""]
+    assert pushed_tips(lines) == [tip]

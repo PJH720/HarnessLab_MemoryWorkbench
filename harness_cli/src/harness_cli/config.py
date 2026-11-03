@@ -26,7 +26,7 @@ def bundled_memory(system: str) -> Path:
 DEFAULT_MEMORY = bundled_memory("confusion_contrast")
 NO_MEMORY_PATH = bundled_memory("no_memory")
 
-ONPREM_API_BASE = "https://model-endpoint.example.invalid/v1"  # the SGLang server every scored run used
+ONPREM_API_BASE = "https://model-endpoint.example.invalid/v1"  # placeholder for the SGLang server every scored run used; set HARNESS_API_BASE
 ONPREM_MODEL = "openai/Inferact/Qwen3.8-Flash-Next-NVFP4"
 OLLAMA_API_BASE = "http://localhost:11434/v1"
 OPENAI_API_BASE = "https://api.openai.com/v1"

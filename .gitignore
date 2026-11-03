@@ -87,7 +87,16 @@ authorized_keys*
 /CODEX_REASONING_PROMPT.md
 /PLAN.md
 /analysis/tracked_10_prompts.json
-analysis/multiseed/
+# Local multi-seed outputs stay private; only the reviewed source files are published.
+analysis/multiseed/*
+!analysis/multiseed/*.py
+!analysis/multiseed/README.md
+!analysis/multiseed/.gitignore
+!analysis/multiseed/reviewed_binaries.txt
+!analysis/multiseed/hooks/
+!analysis/multiseed/docs/
+analysis/multiseed/docs/*
+!analysis/multiseed/docs/publication_privacy.md
 *.pdf
 *.doc
 *.docx
