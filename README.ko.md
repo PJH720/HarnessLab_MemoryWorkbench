@@ -2,8 +2,6 @@
 
 [![Presentation](https://img.shields.io/badge/Presentation-Vercel-black?logo=vercel)](https://harness-midterm-talk.vercel.app)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-185%20passed-success.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](harness_lab/LICENSE-meta-harness)
 
 [English documentation](README.md) · [연구 발표 자료](https://harness-midterm-talk.vercel.app) · [분석 그림 갤러리](analysis/figures/README.md)
 
