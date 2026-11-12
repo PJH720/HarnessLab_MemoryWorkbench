@@ -163,7 +163,7 @@ def get_evaluator(task: str) -> Callable:
             }
 
         return _eval_uspto
-    if task == "Symptom2Disease":
+    if task in ("Symptom2Disease", "Symptom2DiseaseHoldout"):
         return lambda pred, target, **kwargs: eval_symptom2disease(pred, target)
     if task == "LawBench":
 

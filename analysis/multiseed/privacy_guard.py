@@ -12,7 +12,11 @@ PATTERNS = {
     "aws-access-key": re.compile(rb"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
     "private-key": re.compile(rb"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----"),
     "personal-home-path": re.compile(rb"/(?:Users|home)/[A-Za-z0-9_.-]+/"),
-    "private-ip": re.compile(rb"\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b"),
+    # RFC 1918 plus the RFC 6598 shared address range that Tailscale assigns.
+    "private-ip": re.compile(
+        rb"\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01])|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7]))"
+        rb"\.\d{1,3}\.\d{1,3}\b"
+    ),
     "internal-host": re.compile(rb"\b(?:[\w-]+\.tail[\w-]+\.ts\.net|spark-[a-z0-9]+)\b", re.I),
     "student-identifier": re.compile(rb"\b2018\d{4}\b"),
     "personal-name": re.compile(rb"Jaehyun[ _-]*Park", re.I),

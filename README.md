@@ -89,7 +89,7 @@ We audited whether LLM-written diagnostic rules (`cue_bank`, `cue_bank_verified`
 
 > [!WARNING]
 > ### What These Results Do NOT Show (Explicit Limitations)
-> - **Primary 3-Seed Verdict is `INCOMPLETE`:** Only **29 of 37** preregistered result files were analysable (8 `seed 456` files were missing). Under our preregistered rule, no final multi-seed verdict is claimed below 3 complete seeds.
+> - **Primary 3-Seed Verdict is `H1 NOT SUPPORTED`:** All **37 of 37** preregistered result files were analysed. Pooled over three seeds on the test split (636 evaluations of the same 212 texts), `knn_top6` alone was correct on 35 items and `cue_bank` alone on 30 (matched Mantel-Haenszel p = 0.535, exact pooled-discordance p = 0.620). An earlier 29/37 snapshot, taken before the last seed-456 runs finished, had been reported as `INCOMPLETE`.
 > - **Non-Significance $\neq$ Equivalence:** Failing to reject the null between `knn_top6` and `cue_bank` ($p = 0.68$) does not prove they are equal; $n = 212$ is underpowered for $<5\text{\%p}$ effects.
 > - **Repeated Evaluations $\neq$ Independent Sample Size:** Evaluating 212 test items across 3 seeds yields 636 trials, **not** 636 independent questions. Primary tests are conducted per seed.
 > - **Single Benchmark & Frozen Model:** Results apply to `Symptom2Disease` on `Qwen3.8-Flash-Next-NVFP4` (zero-think) and carry zero clinical validity.

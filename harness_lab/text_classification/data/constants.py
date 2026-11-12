@@ -2,12 +2,14 @@
 
 from pathlib import Path
 
-MCE_TASKS = ["FiNER", "USPTO", "Symptom2Disease", "LawBench", "AEGIS"]
+MCE_TASKS = ["FiNER", "USPTO", "Symptom2Disease", "Symptom2DiseaseHoldout", "LawBench", "AEGIS"]
 MCE_DATA_PATH = str(Path(__file__).resolve().parent)
 MCE_DATA_SPLITS = {
     "FiNER": {"train": 200, "val": 100, "test": 100},
     "USPTO": {"train": 50, "val": 30, "test": 100},
     "Symptom2Disease": {"train": 200, "val": 50, "test": 212},
+    # Confirmatory test set built by scripts/build_holdout.py; train/val are the vendored splits.
+    "Symptom2DiseaseHoldout": {"train": 200, "val": 50, "test": 572},
     "LawBench": {"train": 200, "val": 50, "test": 100},
     "AEGIS": {"train": 400, "val": 128, "test": 140},
 }

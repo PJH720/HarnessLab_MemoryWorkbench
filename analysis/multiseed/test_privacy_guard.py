@@ -23,6 +23,13 @@ def test_sensitive_content_is_detected():
         assert reason in content_findings(content)
 
 
+def test_shared_address_range_is_private():
+    assert "private-ip" in content_findings(b"100." + b"126.1.2")
+    assert "private-ip" in content_findings(b"100." + b"64.0.1")
+    assert "private-ip" not in content_findings(b"100." + b"128.0.1")
+    assert "private-ip" not in content_findings(b"version 100." + b"0.1")
+
+
 def test_safe_source_and_unknown_binary():
     assert content_findings(b"API_KEY = os.environ.get('API_KEY')") == []
     assert content_findings(b"binary\x00payload") == ["unreviewed-binary"]

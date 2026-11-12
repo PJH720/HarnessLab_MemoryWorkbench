@@ -578,6 +578,9 @@ if __name__ == "__main__":
         "--test-output", default=None, help="Write test results JSON here"
     )
     parser.add_argument("--log", default=None, help="Path for JSONL training log")
+    parser.add_argument(
+        "--predictions-output", default=None, help="Write per-question test predictions (JSONL) here"
+    )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -827,3 +830,11 @@ if __name__ == "__main__":
         with open(args.test_output, "w") as f:
             json.dump(_build_output(test_result), f, indent=2)
         print(f"Saved test results to {args.test_output}", flush=True)
+
+    if args.predictions_output and test_preds:
+        Path(args.predictions_output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.predictions_output, "w", encoding="utf-8") as f:
+            for i, (ex, pred) in enumerate(zip(test_examples, test_preds)):
+                row = {"index": i, "raw_question": ex.get("raw_question", ""), **pred}
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        print(f"Saved test predictions to {args.predictions_output}", flush=True)

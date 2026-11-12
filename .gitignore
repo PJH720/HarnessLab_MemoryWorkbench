@@ -127,6 +127,7 @@ analysis/multiseed/docs/*
 **/predictions.jsonl
 **/tracked.jsonl
 /analysis/out/
+/analysis/confirm/out/
 /analysis/multiseed/out/
 /analysis/multiseed/graph.json
 /analysis/multiseed/loop_log.md

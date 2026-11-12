@@ -49,6 +49,7 @@ def load_mce_dataset(
         "FiNER": _load_finer,
         "USPTO": _load_uspto,
         "Symptom2Disease": _load_symptom2disease,
+        "Symptom2DiseaseHoldout": _load_symptom2disease_holdout,
         "LawBench": _load_lawbench,
         "AEGIS": _load_aegis,
     }
@@ -129,8 +130,10 @@ Example response format:
     return examples
 
 
-def _load_symptom2disease(split: str = "test", limit: int | None = None) -> list[dict]:
-    data = _load_jsonl(_get_mce_split_path("symptom_diagnosis", split), limit)
+def _load_symptom2disease(
+    split: str = "test", limit: int | None = None, task_dir: str = "symptom_diagnosis"
+) -> list[dict]:
+    data = _load_jsonl(_get_mce_split_path(task_dir, split), limit)
     examples = []
     for example in data:
         prompt = f"""You are an expert medical diagnostician. Based on the patient's symptoms, provide a diagnosis.
@@ -157,6 +160,12 @@ Please provide your reasoning and final diagnosis."""
             }
         )
     return examples
+
+
+def _load_symptom2disease_holdout(split: str = "test", limit: int | None = None) -> list[dict]:
+    """Same prompt as Symptom2Disease; only the test split comes from the holdout."""
+    task_dir = "symptom_holdout" if split == "test" else "symptom_diagnosis"
+    return _load_symptom2disease(split, limit, task_dir=task_dir)
 
 
 def _load_lawbench(split: str = "test", limit: int | None = None) -> list[dict]:

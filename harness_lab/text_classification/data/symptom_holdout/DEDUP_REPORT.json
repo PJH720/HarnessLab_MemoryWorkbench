@@ -1,0 +1,56 @@
+{
+  "status": "OK",
+  "threshold": 0.9,
+  "provenance": {
+    "test_equals_source_test": true,
+    "train_subset_of_source_train": true,
+    "val_subset_of_source_train": true
+  },
+  "source_rows": {
+    "train": 853,
+    "test": 212
+  },
+  "vendored_rows": {
+    "train": 200,
+    "val": 50,
+    "test": 212
+  },
+  "excluded": {
+    "exact_vendored": 251,
+    "near_duplicate_vendored": 20,
+    "near_duplicate_within_holdout": 8,
+    "exact_within_holdout": 2
+  },
+  "n_holdout": 572,
+  "labels": 22,
+  "label_counts": {
+    "allergy": 26,
+    "arthritis": 26,
+    "bronchial asthma": 27,
+    "cervical spondylosis": 28,
+    "chicken pox": 28,
+    "common cold": 28,
+    "dengue": 28,
+    "diabetes": 25,
+    "drug reaction": 28,
+    "fungal infection": 27,
+    "gastroesophageal reflux disease": 22,
+    "hypertension": 28,
+    "impetigo": 28,
+    "jaundice": 16,
+    "malaria": 26,
+    "migraine": 21,
+    "peptic ulcer disease": 24,
+    "pneumonia": 25,
+    "psoriasis": 28,
+    "typhoid": 27,
+    "urinary tract infection": 28,
+    "varicose veins": 28
+  },
+  "max_cosine_to_vendored": 0.8967,
+  "sha256": {
+    "raw/train.jsonl": "9b8ff27dab30cdeb194d6581dcebffe0d91e21921f974f091736c1f25cad283c",
+    "raw/test.jsonl": "7581c68031d7433fcce22c9aac08f35595b67402ceef92a7dd7336207f3b6195",
+    "test.jsonl": "3e450134cdf385bc57de72a7a203b48954830cf31c1b33d5092088ded23d9023"
+  }
+}
