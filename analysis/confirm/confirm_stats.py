@@ -204,16 +204,27 @@ def main() -> int:
     complete = [r for r in runs if r["status"] == "complete"]
     result = {"coverage": {"expected": len(runs), "complete": len(complete), "runs": runs}}
     OUT.mkdir(parents=True, exist_ok=True)
-    if len(complete) != len(runs):
+    done = {(r["seed"], r["sys"]) for r in complete}
+    if not {(PRIMARY_SEED, REFERENCE), (PRIMARY_SEED, "cue_bank")} <= done:
         result["status"] = "INCOMPLETE"
         (OUT / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
-        print(f"INCOMPLETE: {len(complete)}/{len(runs)} runs complete; no inferential output.")
+        print(f"INCOMPLETE: primary pair not complete ({len(complete)}/{len(runs)} runs); no inferential output.")
         return 1
-    comp = comparisons(table)
-    primary = comp[comp.system == "cue_bank"].iloc[0].to_dict()
+    pair = paired_arrays(table, PRIMARY_SEED, "cue_bank")
+    primary = tost(pair.correct_ref.to_numpy(), pair.correct_sys.to_numpy())
+    primary["missing_rate"] = float((pair.failed_call_ref | pair.failed_call_sys).mean())
     hc1 = primary["verdict"] if primary["missing_rate"] <= MAX_MISSING else "inconclusive (missing > 2%)"
+    result.update(primary=primary, hc1_verdict=hc1)
+    if len(complete) != len(runs):
+        # The primary test is final; secondary analyses wait for every preregistered run.
+        result["status"] = "PRIMARY_ONLY"
+        (OUT / "summary.json").write_text(json.dumps(result, indent=2, default=float) + "\n")
+        print(json.dumps({"hc1_verdict": hc1, **primary}, indent=2, default=float))
+        print(f"Secondary analyses pending: {len(complete)}/{len(runs)} runs complete.")
+        return 0
+    comp = comparisons(table)
     result.update(
-        status="COMPLETE", primary=primary, hc1_verdict=hc1,
+        status="COMPLETE",
         hc4=comp[comp.system == "fewshot_all"].iloc[0].to_dict(),
         seed_pooled_primary=seed_pooled(table, "cue_bank"), hc2=hc2(table), hc3=hc3(table, run),
         accuracy={f"{k[0]}/seed{k[1]}": round(v, 4) for k, v in table.groupby(["sys", "seed"]).correct.mean().items()},

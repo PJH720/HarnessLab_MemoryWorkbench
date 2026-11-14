@@ -94,6 +94,14 @@ LLM이 요약한 진단 규칙(`cue_bank`, `cue_bank_verified`, `reflexion_notes
 > - **반복 평가는 독립 표본이 아닙니다:** 세 시드는 동일한 212개 test 문항을 재평가한 것이므로 총 636회 평가가 독립 문항 636개를 의미하지 않습니다.
 > - **단일 벤치마크·단일 동결 모델:** 본 결과는 `Symptom2Disease`와 `Qwen3.8-Flash-Next-NVFP4`에 한정되며 임상적 유효성을 주장하지 않습니다.
 
+> [!NOTE]
+> ### 확증 후속 실험: 사전 등록 완료, 아직 미실행 (결과 없음)
+> - **설계:** 공개 원본 데이터에서 기존에 쓴 462문항과 정확히 같거나 거의 같은 문항(TF-IDF 코사인 ≥ 0.9)을 제거해, 처음 보는 **572문항**(22개 라벨) 홀드아웃을 만들었습니다(`harness_lab/text_classification/scripts/build_holdout.py`). 7개 시스템의 seed 42/123/456 고정 메모리를 한 번만 평가하며, 재학습은 하지 않습니다.
+> - **주가설:** seed 42 메모리에서 `cue_bank`와 `knn_top6`의 정확도 차이가 $5\text{\%p}$ 미만이다(쌍체 TOST, 90% CI). 판정은 `equivalent`, `different`, `inconclusive` 중 하나입니다. $n = 572$는 계획 수치 658보다 작으며, p값을 얻으려고 표본을 늘리지 않습니다.
+> - **현황:** 분석 계획과 코드는 모델을 호출하기 전에 커밋했습니다. 온프레미스 모델 서버에 연결되지 않아 평가가 멈춰 있습니다. **21개 작업 중 0개가 끝났고, 정확도 수치는 아직 없습니다.**
+> - **결과 전 코드 리뷰에서 확인한 한계:** (1) 검색기 자체 가중치로 계산하면 seed 42 메모리 예시와 코사인 ≥ 0.9인 홀드아웃 문항이 3개 있습니다(최대 $0.5\text{\%p}$, `knn_top6`에 유리한 방향). (2) 답을 추출하지 못한 응답은 오답으로 채점되며, 2% 결측 규칙은 주가설에만 적용됩니다.
+> - **재현:** `scripts/run_confirmatory.sh`(서버 주소는 `HARNESS_API_BASE`로 전달) 실행 후 `analysis/confirm/confirm_stats.py`.
+
 <details>
 <summary><strong>📊 클릭하여 펼치기: 검증된 과거 스냅샷 상세 표 (Exact McNemar & Holm 보정 p-value)</strong></summary>
 

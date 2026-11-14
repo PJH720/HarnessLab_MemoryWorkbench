@@ -94,6 +94,14 @@ We audited whether LLM-written diagnostic rules (`cue_bank`, `cue_bank_verified`
 > - **Repeated Evaluations $\neq$ Independent Sample Size:** Evaluating 212 test items across 3 seeds yields 636 trials, **not** 636 independent questions. Primary tests are conducted per seed.
 > - **Single Benchmark & Frozen Model:** Results apply to `Symptom2Disease` on `Qwen3.8-Flash-Next-NVFP4` (zero-think) and carry zero clinical validity.
 
+> [!NOTE]
+> ### Confirmatory Follow-Up: Preregistered, Not Yet Run (No Results)
+> - **Design:** a new holdout of **572** unseen questions (22 labels) built by `harness_lab/text_classification/scripts/build_holdout.py` from the public source data, after removing exact and near duplicates (TF-IDF cosine ≥ 0.9) of the 462 questions already used. The frozen seed 42/123/456 memories of all seven systems are evaluated once; nothing is retrained.
+> - **Primary hypothesis:** `cue_bank` and `knn_top6` differ by less than $5\text{\%p}$ on the seed-42 memory (paired TOST, 90% CI). The verdict is one of `equivalent`, `different`, or `inconclusive`. $n = 572$ is below the 658 planning figure, and the sample will not be extended to chase a p-value.
+> - **Status:** the analysis plan and code were committed before any model call. The evaluation is paused because the on-prem model endpoint is unreachable: **0 of 21 jobs are complete and no accuracy figure exists yet.**
+> - **Limitations found in a pre-result code review:** (1) 3 holdout questions have cosine ≥ 0.9 to a seed-42 memory example under the retriever's own weighting (at most $0.5\text{\%p}$, in favour of `knn_top6`); (2) an answer that cannot be extracted is scored as incorrect, and the 2% missing-answer rule is applied to the primary test only.
+> - **Reproduce:** `scripts/run_confirmatory.sh` (endpoint passed through `HARNESS_API_BASE`), then `analysis/confirm/confirm_stats.py`.
+
 <details>
 <summary><strong>📊 Click to expand: Verified Historical Snapshot Table (Exact McNemar & Holm-Adjusted p-values)</strong></summary>
 
