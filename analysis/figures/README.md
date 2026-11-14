@@ -73,3 +73,12 @@ uv run --project harness_lab/text_classification \
 
 - 같은 입력·같은 설정으로 다시 돌린 세 쌍(val 50문항)에서 정오가 바뀐 문항은 4/50, 3/50, 3/50 (6~8%), 예측 라벨이 바뀐 문항은 7/50, 7/50, 6/50 (12~14%)입니다.
 - 50문항에서 몇 문항 차이는 이 잡음 범위 안에서 읽어야 합니다. 서버 쪽의 정확한 원인은 확인하지 못했습니다.
+
+## Fig 9. 확증 실험 설계 (결과 없음)
+
+![Fig 9](fig9_confirmatory_design.png)
+
+- `analysis/confirm/plot_design.py`가 그립니다. 왼쪽은 `scripts/build_holdout.py`의 `DEDUP_REPORT.json`, 오른쪽은 `analysis/multiseed/power_plan.py`의 정확 McNemar 검정력 함수에서 실행 시점에 계산했습니다.
+- 원본 train 853행에서 이미 쓴 문항 251개, 그와 거의 같은 문항 20개, 홀드아웃 내부 중복 10개를 빼 572문항이 남았습니다.
+- 불일치율 20%에서 5%p 차이의 검정력은 n=572에서 0.74입니다(n=212는 0.32, n=658은 0.80).
+- 평가가 아직 실행되지 않아 정확도나 판정은 그리지 않았습니다.

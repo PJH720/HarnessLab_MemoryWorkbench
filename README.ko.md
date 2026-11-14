@@ -102,6 +102,10 @@ LLM이 요약한 진단 규칙(`cue_bank`, `cue_bank_verified`, `reflexion_notes
 > - **결과 전 코드 리뷰에서 확인한 한계:** (1) 검색기 자체 가중치로 계산하면 seed 42 메모리 예시와 코사인 ≥ 0.9인 홀드아웃 문항이 3개 있습니다(최대 $0.5\text{\%p}$, `knn_top6`에 유리한 방향). (2) 답을 추출하지 못한 응답은 오답으로 채점되며, 2% 결측 규칙은 주가설에만 적용됩니다.
 > - **재현:** `scripts/run_confirmatory.sh`(서버 주소는 `HARNESS_API_BASE`로 전달) 실행 후 `analysis/confirm/confirm_stats.py`.
 
+![확증 실험 설계](analysis/figures/fig9_confirmatory_design.png)
+
+*`Fig 9`: 572문항 홀드아웃을 만든 과정과 그 규모에서의 계획 검정력(불일치율 20%, \text{\%p}��이 기준 0.74)입니다. 설계만 보여 주며 결과는 그리지 않았습니다.*
+
 <details>
 <summary><strong>📊 클릭하여 펼치기: 검증된 과거 스냅샷 상세 표 (Exact McNemar & Holm 보정 p-value)</strong></summary>
 

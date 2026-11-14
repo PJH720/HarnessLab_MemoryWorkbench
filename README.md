@@ -102,6 +102,10 @@ We audited whether LLM-written diagnostic rules (`cue_bank`, `cue_bank_verified`
 > - **Limitations found in a pre-result code review:** (1) 3 holdout questions have cosine ≥ 0.9 to a seed-42 memory example under the retriever's own weighting (at most $0.5\text{\%p}$, in favour of `knn_top6`); (2) an answer that cannot be extracted is scored as incorrect, and the 2% missing-answer rule is applied to the primary test only.
 > - **Reproduce:** `scripts/run_confirmatory.sh` (endpoint passed through `HARNESS_API_BASE`), then `analysis/confirm/confirm_stats.py`.
 
+![Confirmatory experiment design](analysis/figures/fig9_confirmatory_design.png)
+
+*`Fig 9`: how the 572-question holdout was built, and the planned power at that size (0.74 for a \text{\%p} at 20% discordance). It shows the design only; no result is plotted.*
+
 <details>
 <summary><strong>📊 Click to expand: Verified Historical Snapshot Table (Exact McNemar & Holm-Adjusted p-values)</strong></summary>
 
